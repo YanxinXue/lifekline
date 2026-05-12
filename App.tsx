@@ -40,10 +40,7 @@ const App: React.FC = () => {
       healthScore: result.analysis.healthScore,
       family: result.analysis.family,
       familyScore: result.analysis.familyScore,
-      crypto: result.analysis.crypto,
-      cryptoScore: result.analysis.cryptoScore,
-      cryptoYear: result.analysis.cryptoYear,
-      cryptoStyle: result.analysis.cryptoStyle,
+
       chartPoints: result.chartData,
     };
 
@@ -93,10 +90,7 @@ const App: React.FC = () => {
             healthScore: data.healthScore || 5,
             family: data.family || "无",
             familyScore: data.familyScore || 5,
-            crypto: data.crypto || "暂无交易分析",
-            cryptoScore: data.cryptoScore || 5,
-            cryptoYear: data.cryptoYear || "待定",
-            cryptoStyle: data.cryptoStyle || "现货定投",
+
           },
         };
 

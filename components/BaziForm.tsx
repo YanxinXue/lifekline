@@ -1,7 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { UserInput, Gender } from '../types';
-import { Loader2, Sparkles, TrendingUp, Settings } from 'lucide-react';
+import { Loader2, Sparkles, TrendingUp, Settings, Calendar } from 'lucide-react';
+import { calculateBazi } from '../services/baziCalculator';
+import CitySelector from './CitySelector';
 
 interface BaziFormProps {
   onSubmit: (data: UserInput) => void;
@@ -24,7 +26,41 @@ const BaziForm: React.FC<BaziFormProps> = ({ onSubmit, isLoading }) => {
     apiKey: '',
   });
 
+  const [birthDate, setBirthDate] = useState('');
+  const [birthTime, setBirthTime] = useState('');
+  const [cityLongitude, setCityLongitude] = useState(116.4);
+  const [baziError, setBaziError] = useState<string | null>(null);
+
   const [formErrors, setFormErrors] = useState<{ modelName?: string, apiBaseUrl?: string, apiKey?: string }>({});
+
+  useEffect(() => {
+    if (!birthDate || !birthTime) {
+      setBaziError(null);
+      return;
+    }
+    try {
+      const result = calculateBazi({
+        birthDate,
+        birthTime,
+        longitude: cityLongitude,
+        gender: formData.gender,
+      });
+      setFormData(prev => ({
+        ...prev,
+        birthYear: birthDate.split('-')[0],
+        yearPillar: result.yearPillar,
+        monthPillar: result.monthPillar,
+        dayPillar: result.dayPillar,
+        hourPillar: result.hourPillar,
+        startAge: String(result.startAge),
+        firstDaYun: result.firstDaYun,
+      }));
+      setBaziError(null);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '计算失败';
+      setBaziError(message);
+    }
+  }, [birthDate, birthTime, cityLongitude, formData.gender]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -125,6 +161,47 @@ const BaziForm: React.FC<BaziFormProps> = ({ onSubmit, isLoading }) => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Birth Date & Time */}
+        <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+          <div className="flex items-center gap-2 mb-3 text-green-800 text-sm font-bold">
+            <Calendar className="w-4 h-4" />
+            <span>出生时间</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">出生日期</label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={e => setBirthDate(e.target.value)}
+                className="w-full px-3 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white font-bold"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">出生时间 (北京时间)</label>
+              <input
+                type="time"
+                value={birthTime}
+                onChange={e => setBirthTime(e.target.value)}
+                className="w-full px-3 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white font-bold"
+              />
+            </div>
+          </div>
+          <CitySelector
+            value="北京"
+            onChange={(lon) => setCityLongitude(lon)}
+          />
+          {baziError && (
+            <p className="text-red-500 text-xs mt-2">{baziError}</p>
+          )}
+          {birthDate && birthTime && !baziError && formData.yearPillar && (
+            <p className="text-green-700 text-xs mt-2 font-bold">
+              已自动排盘：{formData.yearPillar} {formData.monthPillar} {formData.dayPillar} {formData.hourPillar}
+              {formData.startAge && formData.firstDaYun && ` | 起运${formData.startAge}岁 · 大运${formData.firstDaYun}`}
+            </p>
+          )}
         </div>
 
         {/* Four Pillars Manual Input */}

@@ -1,8 +1,10 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LifeDestinyResult } from '../types';
-import { Copy, CheckCircle, AlertCircle, Upload, Sparkles, MessageSquare, ArrowRight } from 'lucide-react';
+import { Copy, CheckCircle, AlertCircle, Upload, Sparkles, MessageSquare, ArrowRight, Calendar } from 'lucide-react';
 import { BAZI_SYSTEM_INSTRUCTION } from '../constants';
+import { calculateBazi } from '../services/baziCalculator';
+import { generateUserPrompt, getDaYunDirection } from '../services/promptBuilder';
+import CitySelector from './CitySelector';
 
 interface ImportDataModeProps {
     onDataImport: (data: LifeDestinyResult) => void;
@@ -24,84 +26,64 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
     const [jsonInput, setJsonInput] = useState('');
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [birthDate, setBirthDate] = useState('');
+    const [birthTime, setBirthTime] = useState('');
+    const [cityLongitude, setCityLongitude] = useState(116.4);
+    const [baziError, setBaziError] = useState<string | null>(null);
 
-    // 计算大运方向
-    const getDaYunDirection = () => {
+    useEffect(() => {
+        if (!birthDate || !birthTime) {
+            setBaziError(null);
+            return;
+        }
+        try {
+            const result = calculateBazi({
+                birthDate,
+                birthTime,
+                longitude: cityLongitude,
+                gender: baziInfo.gender as 'Male' | 'Female',
+            });
+            setBaziInfo(prev => ({
+                ...prev,
+                birthYear: birthDate.split('-')[0],
+                yearPillar: result.yearPillar,
+                monthPillar: result.monthPillar,
+                dayPillar: result.dayPillar,
+                hourPillar: result.hourPillar,
+                startAge: String(result.startAge),
+                firstDaYun: result.firstDaYun,
+            }));
+            setBaziError(null);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '计算失败';
+            setBaziError(message);
+        }
+    }, [birthDate, birthTime, cityLongitude, baziInfo.gender]);
+
+    const getDaYunDirectionInfo = () => {
         if (!baziInfo.yearPillar) return { isForward: true, text: '顺行 (Forward)' };
-        const firstChar = baziInfo.yearPillar.trim().charAt(0);
-        const yangStems = ['甲', '丙', '戊', '庚', '壬'];
-
-        const isYangYear = yangStems.includes(firstChar);
-        const isForward = baziInfo.gender === 'Male' ? isYangYear : !isYangYear;
-
-        return {
-            isForward,
-            text: isForward ? '顺行 (Forward)' : '逆行 (Backward)'
-        };
+        return getDaYunDirection(baziInfo.yearPillar, baziInfo.gender as 'Male' | 'Female');
     };
 
-    // 生成用户提示词
-    const generateUserPrompt = () => {
-        const { isForward, text: daYunDirectionStr } = getDaYunDirection();
-        const genderStr = baziInfo.gender === 'Male' ? '男 (乾造)' : '女 (坤造)';
-        const startAgeInt = parseInt(baziInfo.startAge) || 1;
-
-        const directionExample = isForward
-            ? "例如：第一步是【戊申】，第二步则是【己酉】（顺排）"
-            : "例如：第一步是【戊申】，第二步则是【丁未】（逆排）";
-
-        const yearStemPolarity = (() => {
-            const firstChar = baziInfo.yearPillar.trim().charAt(0);
-            const yangStems = ['甲', '丙', '戊', '庚', '壬'];
-            return yangStems.includes(firstChar) ? '阳' : '阴';
-        })();
-
-        return `请根据以下**已经排好的**八字四柱和**指定的大运信息**进行分析。
-
-【基本信息】
-性别：${genderStr}
-姓名：${baziInfo.name || "未提供"}
-出生年份：${baziInfo.birthYear}年 (阳历)
-
-【八字四柱】
-年柱：${baziInfo.yearPillar} (天干属性：${yearStemPolarity})
-月柱：${baziInfo.monthPillar}
-日柱：${baziInfo.dayPillar}
-时柱：${baziInfo.hourPillar}
-
-【大运核心参数】
-1. 起运年龄：${baziInfo.startAge} 岁 (虚岁)。
-2. 第一步大运：${baziInfo.firstDaYun}。
-3. **排序方向**：${daYunDirectionStr}。
-
-【必须执行的算法 - 大运序列生成】
-请严格按照以下步骤生成数据：
-
-1. **锁定第一步**：确认【${baziInfo.firstDaYun}】为第一步大运。
-2. **计算序列**：根据六十甲子顺序和方向（${daYunDirectionStr}），推算出接下来的 9 步大运。
-   ${directionExample}
-3. **填充 JSON**：
-   - Age 1 到 ${startAgeInt - 1}: daYun = "童限"
-   - Age ${startAgeInt} 到 ${startAgeInt + 9}: daYun = [第1步大运: ${baziInfo.firstDaYun}]
-   - Age ${startAgeInt + 10} 到 ${startAgeInt + 19}: daYun = [第2步大运]
-   - ...以此类推直到 100 岁。
-
-【特别警告】
-- **daYun 字段**：必须填大运干支（10年一变），**绝对不要**填流年干支。
-- **ganZhi 字段**：填入该年份的**流年干支**（每年一变，例如 2024=甲辰，2025=乙巳）。
-
-任务：
-1. 确认格局与喜忌。
-2. 生成 **1-100 岁 (虚岁)** 的人生流年K线数据。
-3. 在 \`reason\` 字段中提供流年详批。
-4. 生成带评分的命理分析报告（包含性格分析、币圈交易分析、发展风水分析）。
-
-请严格按照系统指令生成 JSON 数据。务必只返回纯JSON格式数据，不要包含任何markdown代码块标记或其他文字说明。`;
+    const generatePrompt = () => {
+        if (!baziInfo.yearPillar || !baziInfo.firstDaYun || !baziInfo.startAge) {
+            return '';
+        }
+        return generateUserPrompt({
+            name: baziInfo.name,
+            gender: baziInfo.gender as 'Male' | 'Female',
+            birthYear: baziInfo.birthYear,
+            yearPillar: baziInfo.yearPillar,
+            monthPillar: baziInfo.monthPillar,
+            dayPillar: baziInfo.dayPillar,
+            hourPillar: baziInfo.hourPillar,
+            startAge: baziInfo.startAge,
+            firstDaYun: baziInfo.firstDaYun,
+        });
     };
 
-    // 复制完整提示词
     const copyFullPrompt = async () => {
-        const fullPrompt = `=== 系统指令 (System Prompt) ===\n\n${BAZI_SYSTEM_INSTRUCTION}\n\n=== 用户提示词 (User Prompt) ===\n\n${generateUserPrompt()}`;
+        const fullPrompt = `=== 系统指令 (System Prompt) ===\n\n${BAZI_SYSTEM_INSTRUCTION}\n\n=== 用户提示词 (User Prompt) ===\n\n${generatePrompt()}`;
 
         try {
             await navigator.clipboard.writeText(fullPrompt);
@@ -112,7 +94,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
         }
     };
 
-    // 解析导入的 JSON
     const handleImport = () => {
         setError(null);
 
@@ -122,15 +103,12 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
         }
 
         try {
-            // 尝试从可能包含 markdown 的内容中提取 JSON
             let jsonContent = jsonInput.trim();
 
-            // 提取 ```json ... ``` 中的内容
             const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
             if (jsonMatch) {
                 jsonContent = jsonMatch[1].trim();
             } else {
-                // 尝试找到 JSON 对象
                 const jsonStartIndex = jsonContent.indexOf('{');
                 const jsonEndIndex = jsonContent.lastIndexOf('}');
                 if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
@@ -140,7 +118,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
 
             const data = JSON.parse(jsonContent);
 
-            // 校验数据
             if (!data.chartPoints || !Array.isArray(data.chartPoints)) {
                 throw new Error('数据格式不正确：缺少 chartPoints 数组');
             }
@@ -149,7 +126,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                 throw new Error('数据不完整：chartPoints 数量太少');
             }
 
-            // 转换为应用所需格式
             const result: LifeDestinyResult = {
                 chartData: data.chartPoints,
                 analysis: {
@@ -170,10 +146,7 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                     healthScore: data.healthScore || 5,
                     family: data.family || "无",
                     familyScore: data.familyScore || 5,
-                    crypto: data.crypto || "暂无交易分析",
-                    cryptoScore: data.cryptoScore || 5,
-                    cryptoYear: data.cryptoYear || "待定",
-                    cryptoStyle: data.cryptoStyle || "现货定投",
+
                 },
             };
 
@@ -184,7 +157,8 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
     };
 
     const handleBaziChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setBaziInfo(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        const { name, value } = e.target;
+        setBaziInfo(prev => ({ ...prev, [name]: value }));
     };
 
     const isStep1Valid = baziInfo.birthYear && baziInfo.yearPillar && baziInfo.monthPillar &&
@@ -192,7 +166,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
 
     return (
         <div className="w-full max-w-2xl bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-            {/* 步骤指示器 */}
             <div className="flex items-center justify-center gap-2 mb-8">
                 {[1, 2, 3].map((s) => (
                     <React.Fragment key={s}>
@@ -211,7 +184,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                 ))}
             </div>
 
-            {/* 步骤 1: 输入八字信息 */}
             {step === 1 && (
                 <div className="space-y-6">
                     <div className="text-center">
@@ -233,16 +205,56 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">性别</label>
-                            <select
-                                name="gender"
-                                value={baziInfo.gender}
-                                onChange={handleBaziChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            >
+                        <select
+                            name="gender"
+                            value={baziInfo.gender}
+                            onChange={handleBaziChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
                                 <option value="Male">乾造 (男)</option>
                                 <option value="Female">坤造 (女)</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                        <div className="flex items-center gap-2 mb-3 text-green-800 text-sm font-bold">
+                            <Calendar className="w-4 h-4" />
+                            <span>出生时间 (可自动排盘)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">出生日期</label>
+                                <input
+                                    type="date"
+                                    value={birthDate}
+                                    onChange={e => setBirthDate(e.target.value)}
+                                    className="w-full px-3 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">出生时间 (北京时间)</label>
+                                <input
+                                    type="time"
+                                    value={birthTime}
+                                    onChange={e => setBirthTime(e.target.value)}
+                                    className="w-full px-3 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white font-bold"
+                                />
+                            </div>
+                        </div>
+                        <CitySelector
+                            value="北京"
+                            onChange={(lon) => setCityLongitude(lon)}
+                        />
+                        {baziError && (
+                            <p className="text-red-500 text-xs mt-2">{baziError}</p>
+                        )}
+                        {birthDate && birthTime && !baziError && baziInfo.yearPillar && (
+                            <p className="text-green-700 text-xs mt-2 font-bold">
+                                已自动排盘：{baziInfo.yearPillar} {baziInfo.monthPillar} {baziInfo.dayPillar} {baziInfo.hourPillar}
+                                {baziInfo.startAge && baziInfo.firstDaYun && ` | 起运${baziInfo.startAge}岁 · 大运${baziInfo.firstDaYun}`}
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
@@ -306,7 +318,7 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                             </div>
                         </div>
                         <p className="text-xs text-indigo-600/70 mt-2 text-center">
-                            大运方向：<span className="font-bold text-indigo-900">{getDaYunDirection().text}</span>
+                            大运方向：<span className="font-bold text-indigo-900">                    {getDaYunDirectionInfo().text}</span>
                         </p>
                     </div>
 
@@ -320,7 +332,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                 </div>
             )}
 
-            {/* 步骤 2: 复制提示词 */}
             {step === 2 && (
                 <div className="space-y-6">
                     <div className="text-center">
@@ -329,17 +340,19 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                     </div>
 
                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border border-blue-200">
-                        <div className="flex items-center gap-3 mb-4">
-                            <MessageSquare className="w-6 h-6 text-blue-600" />
-                            <div>
-                                <h3 className="font-bold text-gray-800">支持的 AI 工具</h3>
-                                <p className="text-sm text-gray-600">ChatGPT、Claude、Gemini、通义千问、文心一言 等</p>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <MessageSquare className="w-6 h-6 text-blue-600" />
+                                <div>
+                                    <h3 className="font-bold text-gray-800">支持的 AI 工具</h3>
+                                    <p className="text-sm text-gray-600">ChatGPT、Claude、Gemini、通义千问、文心一言 等</p>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-64 overflow-y-auto mb-4">
+                        <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-[80vh] overflow-y-auto mb-4">
                             <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
-                                {generateUserPrompt().substring(0, 500)}...
+                                {`=== 系统指令 (System Prompt) ===\n\n${BAZI_SYSTEM_INSTRUCTION}\n\n=== 用户提示词 (User Prompt) ===\n\n${generatePrompt()}`}
                             </pre>
                         </div>
 
@@ -392,7 +405,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                 </div>
             )}
 
-            {/* 步骤 3: 导入 JSON */}
             {step === 3 && (
                 <div className="space-y-6">
                     <div className="text-center">

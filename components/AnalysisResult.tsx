@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AnalysisData } from '../types';
-import { ScrollText, Briefcase, Coins, Heart, Activity, Users, Star, Info, Brain, Bitcoin, Compass } from 'lucide-react';
+import { ScrollText, Briefcase, Coins, Heart, Activity, Users, Star, Info, Brain, Compass } from 'lucide-react';
 
 interface AnalysisResultProps {
   analysis: AnalysisData;
@@ -35,7 +35,7 @@ const ScoreBar = ({ score }: { score: number }) => {
 };
 
 
-const Card = ({ title, icon: Icon, content, score, colorClass, extraBadges }: any) => {
+const Card = ({ title, icon: Icon, content, score, colorClass }: any) => {
   let displayContent: React.ReactNode;
 
   if (React.isValidElement(content)) {
@@ -78,13 +78,6 @@ const Card = ({ title, icon: Icon, content, score, colorClass, extraBadges }: an
         </div>
         <Star className="w-4 h-4 opacity-50" />
       </div>
-
-      {/* Extra Badges for Crypto */}
-      {extraBadges && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {extraBadges}
-        </div>
-      )}
 
       <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap flex-grow">
         {displayContent}
@@ -131,25 +124,6 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ analysis }) => {
 
       {/* Grid for categorical analysis with Scores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* Crypto Analysis */}
-        <Card
-          title="币圈交易运势"
-          icon={Bitcoin}
-          content={analysis.crypto}
-          score={analysis.cryptoScore}
-          colorClass="text-amber-600"
-          extraBadges={
-            <>
-              <span className="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded border border-amber-200">
-                🔥 暴富流年: {analysis.cryptoYear}
-              </span>
-              <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded border border-indigo-200">
-                🎯 推荐: {analysis.cryptoStyle}
-              </span>
-            </>
-          }
-        />
 
         <Card
           title="性格分析"
