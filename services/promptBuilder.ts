@@ -182,8 +182,30 @@ ${daYunAgeRanges}
    - health: 健康提示 (60字内)
    - family: 六亲关系 (60字内)
 
-
-
+**返回的 JSON 必须严格遵循以下结构（字段名不可更改）：**
+{
+  "bazi": ["年柱", "月柱", "日柱", "时柱"],
+  "summary": "命理总评",
+  "summaryScore": 8,
+  "personality": "性格分析",
+  "personalityScore": 8,
+  "industry": "事业分析",
+  "industryScore": 7,
+  "fengShui": "风水建议",
+  "fengShuiScore": 8,
+  "wealth": "财富趋势",
+  "wealthScore": 9,
+  "marriage": "婚姻分析",
+  "marriageScore": 6,
+  "health": "健康提示",
+  "healthScore": 5,
+  "family": "六亲关系",
+  "familyScore": 7,
+  "chartPoints": [
+    {"age":1,"year":2000,"daYun":"童限","ganZhi":"庚辰","open":50,"close":55,"high":60,"low":45,"score":55,"reason":"开局平稳，家庭呵护"},
+    ... (共100条，从虚岁1岁到100岁)
+  ]
+}
 【评分原则】
 - 大运流年相生 (如用神年份) → 高评分 (7-10)
 - 大运流年相克 (如忌神年份、刑冲合害) → 低评分 (0-4)
