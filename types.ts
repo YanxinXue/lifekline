@@ -71,3 +71,24 @@ export interface LifeDestinyResult {
   chartData: KLinePoint[];
   analysis: AnalysisData;
 }
+
+export interface FortuneStick {
+  id: number;
+  title: string;
+  level: string;
+  fortuneLevel: string;
+  story: string;
+  poem: string;
+  meaning: string;
+  career: string;
+  wealth: string;
+  love: string;
+  health: string;
+  advice: string;
+  caution: string;
+}
+
+export interface DivinationResult {
+  stick: FortuneStick;
+  generatedAt: string;
+}
