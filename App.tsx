@@ -10,7 +10,7 @@ import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, Lin
 type PageMode = 'lifeKline' | 'divination';
 
 const App: React.FC = () => {
-  const [pageMode, setPageMode] = useState<PageMode>('lifeKline');
+  const [pageMode, setPageMode] = useState<PageMode>('divination');
   const [result, setResult] = useState<LifeDestinyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
@@ -282,16 +282,6 @@ const App: React.FC = () => {
         <div className="no-print flex justify-center">
           <div className="inline-flex w-full max-w-md rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
             <button
-              onClick={() => setPageMode('lifeKline')}
-              className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${pageMode === 'lifeKline'
-                ? 'bg-gray-900 text-white shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
-                }`}
-            >
-              <LineChart className="w-4 h-4" />
-              人生K线
-            </button>
-            <button
               onClick={() => setPageMode('divination')}
               className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${pageMode === 'divination'
                 ? 'bg-gray-900 text-white shadow-sm'
@@ -300,6 +290,16 @@ const App: React.FC = () => {
             >
               <ScrollText className="w-4 h-4" />
               黄大仙灵签
+            </button>
+            <button
+              onClick={() => setPageMode('lifeKline')}
+              className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${pageMode === 'lifeKline'
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+              <LineChart className="w-4 h-4" />
+              人生K线
             </button>
           </div>
         </div>
