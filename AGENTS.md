@@ -5,7 +5,7 @@
 Single-page React + Vite app (no monorepo). Chinese UI with two independent modes:
 
 - **黄大仙灵签**: default first screen. Randomly draws one of 100 Wong Tai Sin fortune sticks, shows local sign text, and can optionally call an OpenAI-compatible API from the browser for personalized interpretation.
-- **人生 K 线**: legacy bazi (八字命理) workflow for generating "Life Destiny K-Line" charts via AI analysis data.
+- **人生 K 线**: bazi (八字命理) workflow for generating "Life Destiny K-Line" charts. If browser-local online AI config exists, it calls the OpenAI-compatible API directly; otherwise it falls back to the copy-prompt/paste-JSON workflow.
 
 ## Commands
 
@@ -23,7 +23,7 @@ There are **no** lint, test, format, or typecheck scripts. `vite build` is the o
 | `components/DailyDivinationMode.tsx` | Default UI: Wong Tai Sin fortune stick draw, local sign display, optional online AI interpretation |
 | `data/fortuneSticks.ts` | Local static data for 100 Wong Tai Sin fortune sticks: sign number, title, level, poem, story, and full interpretation |
 | `services/fortuneService.ts` | Browser-side OpenAI-compatible client for online fortune-stick interpretation + localStorage config helpers |
-| `components/ImportDataMode.tsx` | Life K-Line UI: 3-step wizard (input bazi → copy prompt → paste AI JSON) |
+| `components/ImportDataMode.tsx` | Life K-Line UI: input bazi, then either direct online AI generation or fallback copy-prompt/paste-JSON workflow |
 | `components/BaziForm.tsx` | Alternative form with direct API call (not used by default in App.tsx) |
 | `components/LifeKLineChart.tsx` | Recharts candlestick chart for fortune visualization |
 | `components/AnalysisResult.tsx` | Analysis cards grid with score bars |
@@ -38,14 +38,15 @@ There are **no** lint, test, format, or typecheck scripts. `vite build` is the o
 - **No CSS files found** — all styling is Tailwind utility classes (via CDN) and inline styles in `index.html`'s `<style>` block.
 - **Default route state**: `App.tsx` initializes `pageMode` to `divination`, so the first screen is 黄大仙灵签. Users can switch to 人生K线 via the top tab.
 - **Fortune-stick data is local**: `data/fortuneSticks.ts` contains 100 static sign records. Do not mix fortune-stick results into Life K-Line JSON export.
-- **Online divination config is browser-local only**: API Key, base URL, and model are stored in `localStorage` under `lifekline_divination_api_config`; there is no backend persistence.
+- **Online AI config is browser-local only**: API Key, base URL, and model are stored in `localStorage` under `lifekline_divination_api_config`; there is no backend persistence. The same config is reused by both Wong Tai Sin fortune sticks and Life K-Line.
 - **Online divination calls are browser-side**: `services/fortuneService.ts` sends OpenAI-compatible chat-completions requests directly from the user's browser. Debug logs intentionally print request body and model response to the browser console, but not the API key.
+- **Online Life K-Line calls are browser-side**: `components/ImportDataMode.tsx` calls `services/geminiService.ts` directly when usable online config exists. If config is missing or an online request fails, users can still switch to the manual prompt-copy flow.
 - **Default online model/base URL**: default model is `qwen3.7-plus`; default base URL is `https://dashscope.aliyuncs.com/compatible-mode/v1`. Full `/chat/completions` URLs are normalized.
 - **Divination mode switching**: If complete online config exists, the app defaults to online divination mode. The config modal can switch back to local mode without deleting cached config.
 - **Result behavior**: In the divination result view, `重新抽一签` returns to the question input screen instead of immediately drawing again.
 - **Vite env loading**: `vite.config.ts` loads env with `loadEnv(mode, '.', '')` (no prefix filter). Prefers `API_KEY` over `VITE_API_KEY`.
 - **Demo mode**: Set API key to `demo` to load `mock-data.json` instead of calling AI API (`services/geminiService.ts:27`).
-- **`BaziForm.tsx` is not rendered** in the current `App.tsx` — it exists but the active Life K-Line flow uses `ImportDataMode` (copy-paste workflow). `BaziForm` has its own direct API call path with hardcoded default `apiBaseUrl`.
+- **`BaziForm.tsx` is not rendered** in the current `App.tsx` — it exists but the active Life K-Line flow uses `ImportDataMode`. `BaziForm` has its own direct API call path with hardcoded default `apiBaseUrl`.
 - **`API_STATUS` constant** in `constants.ts` acts as a manual kill switch (1=active, 0=maintenance).
 - **tsconfig strict mode**: `noUnusedLocals` and `noUnusedParameters` are enabled — unused imports/params will fail `vite build`.
 - **JSON extraction**: `geminiService.ts`, `fortuneService.ts`, and `ImportDataMode.tsx` parse AI responses by stripping markdown code blocks and finding the outermost `{...}`.

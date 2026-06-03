@@ -130,7 +130,10 @@ const App: React.FC = () => {
   };
 
   const handleDivinationModeClick = () => {
-    if (pageMode !== 'divination') return;
+    if (pageMode === 'lifeKline') {
+      openDivinationConfig();
+      return;
+    }
 
     if (divinationMode === 'online') {
       openDivinationConfig();
@@ -314,7 +317,11 @@ const App: React.FC = () => {
   // 计算人生巅峰
   const peakYearItem = useMemo(() => {
     if (!result || !result.chartData.length) return null;
-    return result.chartData.reduce((prev, current) => (prev.high > current.high) ? prev : current);
+    return result.chartData.reduce((prev, current) => {
+      if (current.high !== prev.high) return current.high > prev.high ? current : prev;
+      if (current.score !== prev.score) return current.score > prev.score ? current : prev;
+      return current.age < prev.age ? current : prev;
+    });
   }, [result]);
 
   return (
@@ -338,13 +345,17 @@ const App: React.FC = () => {
               ? divinationMode === 'online'
                 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                 : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              : 'bg-gray-100 text-gray-500'
+              : hasUsableDivinationApiConfig(divinationApiConfig)
+                ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
-            title={pageMode === 'divination' ? '点击检查本地缓存中的在线解签配置' : undefined}
+            title={pageMode === 'divination' ? '点击检查本地缓存中的在线解签配置' : '点击配置人生K线在线 AI 模型'}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
             {pageMode === 'lifeKline'
-              ? '基于 AI 大模型驱动'
+              ? hasUsableDivinationApiConfig(divinationApiConfig)
+                ? '在线AI已配置'
+                : '配置在线AI'
               : divinationMode === 'online'
                 ? '在线灵签模式'
                 : '本地灵签模式'}
@@ -356,8 +367,8 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-black/40 no-print flex items-center justify-center px-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100">
-              <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线灵签模式</h3>
-              <p className="text-sm text-gray-500 mt-1">配置只保存在当前浏览器缓存中，不上传后端。</p>
+              <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线 AI 模型</h3>
+              <p className="text-sm text-gray-500 mt-1">用于黄大仙灵签和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
             </div>
 
             <div className="p-6 space-y-4">
@@ -402,13 +413,17 @@ const App: React.FC = () => {
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleSwitchToLocalDivination}
-                className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-bold text-sm"
-              >
-                切换为本地模式
-              </button>
+              {pageMode === 'divination' ? (
+                <button
+                  type="button"
+                  onClick={handleSwitchToLocalDivination}
+                  className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-bold text-sm"
+                >
+                  切换为本地模式
+                </button>
+              ) : (
+                <div />
+              )}
               <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
                 <button
                   type="button"
@@ -422,7 +437,7 @@ const App: React.FC = () => {
                   onClick={handleSaveDivinationConfig}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-bold text-sm"
                 >
-                  保存并启用在线模式
+                  保存在线配置
                 </button>
               </div>
             </div>
@@ -481,11 +496,19 @@ const App: React.FC = () => {
               {/* 使用说明 */}
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100 mb-6 text-left w-full max-w-lg">
                 <h3 className="font-bold text-indigo-800 mb-2">📝 使用方法</h3>
-                <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                  <li>填写八字信息，生成专属提示词</li>
-                  <li>复制提示词到任意 AI（ChatGPT、Claude、Gemini 等）</li>
-                  <li>将 AI 返回的 JSON 数据粘贴回来</li>
-                </ol>
+                {hasUsableDivinationApiConfig(divinationApiConfig) ? (
+                  <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                    <li>填写八字信息</li>
+                    <li>系统会直接调用浏览器缓存中的在线 AI 配置</li>
+                    <li>模型返回 JSON 后自动生成 K 线报告</li>
+                  </ol>
+                ) : (
+                  <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                    <li>填写八字信息，生成专属提示词</li>
+                    <li>复制提示词到任意 AI（ChatGPT、Claude、Gemini 等）</li>
+                    <li>将 AI 返回的 JSON 数据粘贴回来</li>
+                  </ol>
+                )}
               </div>
 
               {/* 快速导入 JSON 文件 */}
@@ -502,7 +525,10 @@ const App: React.FC = () => {
             </div>
 
             {/* 导入模式组件 */}
-            <ImportDataMode onDataImport={handleDataImport} />
+            <ImportDataMode
+              onDataImport={handleDataImport}
+              apiConfig={divinationApiConfig}
+            />
 
             {error && (
               <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-100 max-w-md w-full animate-bounce-short">
@@ -563,7 +589,7 @@ const App: React.FC = () => {
                 {peakYearItem && (
                   <p className="text-sm font-bold text-indigo-800 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-flex items-center gap-2 self-start mt-1">
                     <Trophy className="w-3 h-3 text-amber-500" />
-                    人生巅峰年份：{peakYearItem.year}年 ({peakYearItem.ganZhi}) - {peakYearItem.age}岁，评分 <span className="text-amber-600 text-lg">{peakYearItem.high}</span>
+                    人生巅峰年份：{peakYearItem.year}年 ({peakYearItem.ganZhi}) - {peakYearItem.age}岁，高点 <span className="text-amber-600 text-lg">{peakYearItem.high}</span>
                   </p>
                 )}
               </div>

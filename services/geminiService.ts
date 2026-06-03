@@ -15,7 +15,133 @@ const getStemPolarity = (pillar: string): 'YANG' | 'YIN' => {
   return 'YANG';
 };
 
-export const generateLifeAnalysis = async (input: UserInput): Promise<LifeDestinyResult> => {
+const normalizeChatCompletionsUrl = (baseUrl: string) => {
+  const trimmedUrl = baseUrl.trim().replace(/\/+$/, '');
+  if (trimmedUrl.endsWith('/chat/completions')) return trimmedUrl;
+  return `${trimmedUrl}/chat/completions`;
+};
+
+const extractJsonObject = (content: string) => {
+  let jsonContent = content.trim();
+
+  const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) {
+    jsonContent = jsonMatch[1].trim();
+  } else {
+    const jsonStartIndex = jsonContent.indexOf('{');
+    const jsonEndIndex = jsonContent.lastIndexOf('}');
+    if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
+      jsonContent = jsonContent.substring(jsonStartIndex, jsonEndIndex + 1);
+    }
+  }
+
+  return JSON.parse(jsonContent);
+};
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const normalizeNumber = (value: unknown, fallback: number) => {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+};
+
+const normalizeKLinePoint = (point: any, index: number) => {
+  const open = clampNumber(normalizeNumber(point.open, 50), 0, 100);
+  const close = clampNumber(normalizeNumber(point.close, open), 0, 100);
+  const high = clampNumber(Math.max(normalizeNumber(point.high, Math.max(open, close)), open, close), 0, 100);
+  const low = clampNumber(Math.min(normalizeNumber(point.low, Math.min(open, close)), open, close), 0, 100);
+  const rawScore = normalizeNumber(point.score, close);
+  const score = clampNumber(rawScore <= 10 ? rawScore * 10 : rawScore, 0, 100);
+
+  return {
+    age: Math.round(normalizeNumber(point.age, index + 1)),
+    year: Math.round(normalizeNumber(point.year, 0)),
+    ganZhi: typeof point.ganZhi === 'string' && point.ganZhi.trim() ? point.ganZhi.trim() : '未知',
+    daYun: typeof point.daYun === 'string' && point.daYun.trim() ? point.daYun.trim() : '未知',
+    open: Math.round(open),
+    close: Math.round(close),
+    high: Math.round(high),
+    low: Math.round(low),
+    score: Math.round(score),
+    reason: typeof point.reason === 'string' && point.reason.trim() ? point.reason.trim() : '暂无流年说明',
+  };
+};
+
+const parseStreamDataLine = (line: string) => {
+  const trimmedLine = line.trim();
+  if (!trimmedLine.startsWith('data:')) return { content: '', reasoning: '', done: false };
+
+  const payload = trimmedLine.replace(/^data:\s*/, '');
+  if (!payload) return { content: '', reasoning: '', done: false };
+  if (payload === '[DONE]') return { content: '', reasoning: '', done: true };
+
+  try {
+    const data = JSON.parse(payload);
+    const delta = data.choices?.[0]?.delta;
+    return {
+      content: delta?.content || data.choices?.[0]?.message?.content || '',
+      reasoning: delta?.reasoning_content || '',
+      done: false,
+    };
+  } catch {
+    return { content: '', reasoning: '', done: false };
+  }
+};
+
+const readOpenAICompatibleStream = async (
+  response: Response,
+  onProgress?: (message: string) => void
+) => {
+  if (!response.body) {
+    throw new Error('当前浏览器不支持读取流式响应');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let content = '';
+  let reasoningLength = 0;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const chunk = parseStreamDataLine(line);
+      if (chunk.done) {
+        await reader.cancel();
+        return content;
+      }
+
+      if (chunk.reasoning) {
+        reasoningLength += chunk.reasoning.length;
+        onProgress?.(`模型思考中，已接收思考内容 ${reasoningLength} 字`);
+      }
+
+      if (chunk.content) {
+        content += chunk.content;
+        onProgress?.(`正在接收模型输出，已接收 ${content.length} 字`);
+      }
+    }
+  }
+
+  buffer += decoder.decode();
+  const chunk = parseStreamDataLine(buffer);
+  if (chunk.content) {
+    content += chunk.content;
+  }
+
+  return content;
+};
+
+export const generateLifeAnalysis = async (
+  input: UserInput,
+  options?: { onProgress?: (message: string) => void }
+): Promise<LifeDestinyResult> => {
 
   const { apiKey, apiBaseUrl, modelName } = input;
 
@@ -81,21 +207,41 @@ export const generateLifeAnalysis = async (input: UserInput): Promise<LifeDestin
   });
 
   try {
-    const response = await fetch(`${cleanBaseUrl}/chat/completions`, {
+    const requestUrl = normalizeChatCompletionsUrl(cleanBaseUrl);
+    const requestBody: {
+      model: string;
+      messages: { role: string; content: string }[];
+      temperature: number;
+      stream: boolean;
+      stream_options: { include_usage: boolean };
+      enable_thinking?: boolean;
+    } = {
+      model: targetModel,
+      messages: [
+        { role: "system", content: BAZI_SYSTEM_INSTRUCTION + "\n\n请务必只返回纯JSON格式数据，不要包含任何markdown代码块标记。" },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7,
+      stream: true,
+      stream_options: { include_usage: true },
+    };
+
+    if (cleanBaseUrl.includes('dashscope.aliyuncs.com')) {
+      requestBody.enable_thinking = false;
+    }
+
+    console.group('[life-kline-ai] request');
+    console.log('url', requestUrl);
+    console.log('body_json', JSON.stringify(requestBody, null, 2));
+    console.groupEnd();
+
+    const response = await fetch(requestUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${cleanApiKey}`
       },
-      body: JSON.stringify({
-        model: targetModel,
-        messages: [
-          { role: "system", content: BAZI_SYSTEM_INSTRUCTION + "\n\n请务必只返回纯JSON格式数据，不要包含任何markdown代码块标记。" },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 30000
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
@@ -103,39 +249,28 @@ export const generateLifeAnalysis = async (input: UserInput): Promise<LifeDestin
       throw new Error(`API 请求失败: ${response.status} - ${errText}`);
     }
 
-    const jsonResult = await response.json();
-    const content = jsonResult.choices?.[0]?.message?.content;
+    const contentType = response.headers.get('content-type') || '';
+    const content = contentType.includes('text/event-stream')
+      ? await readOpenAICompatibleStream(response, options?.onProgress)
+      : (await response.json()).choices?.[0]?.message?.content;
 
     if (!content) {
       throw new Error("模型未返回任何内容。");
     }
 
-    // 从可能包含 markdown 代码块的内容中提取 JSON
-    let jsonContent = content;
+    console.group('[life-kline-ai] raw response');
+    console.log('raw_content', content);
+    console.groupEnd();
 
-    // 尝试提取 ```json ... ``` 中的内容
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1].trim();
-    } else {
-      // 如果没有代码块，尝试找到 JSON 对象
-      const jsonStartIndex = content.indexOf('{');
-      const jsonEndIndex = content.lastIndexOf('}');
-      if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
-        jsonContent = content.substring(jsonStartIndex, jsonEndIndex + 1);
-      }
-    }
-
-    // 解析 JSON
-    const data = JSON.parse(jsonContent);
+    const data = extractJsonObject(content);
 
     // 简单校验数据完整性
     if (!data.chartPoints || !Array.isArray(data.chartPoints)) {
       throw new Error("模型返回的数据格式不正确（缺失 chartPoints）。");
     }
 
-    return {
-      chartData: data.chartPoints,
+    const result = {
+      chartData: data.chartPoints.map(normalizeKLinePoint),
       analysis: {
         bazi: data.bazi || [],
         summary: data.summary || "无摘要",
@@ -157,8 +292,17 @@ export const generateLifeAnalysis = async (input: UserInput): Promise<LifeDestin
 
       },
     };
+
+    console.group('[life-kline-ai] parsed result');
+    console.log('parsed_result_json', JSON.stringify(result, null, 2));
+    console.groupEnd();
+
+    return result;
   } catch (error) {
     console.error("Gemini/OpenAI API Error:", error);
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error("请求未收到服务端响应，可能是浏览器跨域限制（CORS）、网络异常或接口地址被拦截。");
+    }
     throw error;
   }
 };

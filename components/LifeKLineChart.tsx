@@ -116,10 +116,10 @@ const CandleShape = (props: any) => {
 
 // Custom Label Component for the Peak Star
 const PeakLabel = (props: any) => {
-  const { x, y, width, value, maxHigh } = props;
-  
-  // Only render if this value equals the global max high
-  if (value !== maxHigh) return null;
+  const { x, y, width, value, peakAge, payload } = props;
+
+  // Only render one global peak label. Multiple years can share the same high.
+  if (payload?.age !== peakAge) return null;
 
   return (
     <g>
@@ -160,8 +160,13 @@ const LifeKLineChart: React.FC<LifeKLineChartProps> = ({ data }) => {
     return d.daYun !== data[i-1].daYun;
   });
 
-  // Calculate Global Max High for the peak label
-  const maxHigh = data.length > 0 ? Math.max(...data.map(d => d.high)) : 100;
+  const peakPoint = data.length > 0
+    ? data.reduce((prev, current) => {
+        if (current.high !== prev.high) return current.high > prev.high ? current : prev;
+        if (current.score !== prev.score) return current.score > prev.score ? current : prev;
+        return current.age < prev.age ? current : prev;
+      })
+    : null;
 
   if (!data || data.length === 0) {
     return <div className="h-[500px] flex items-center justify-center text-gray-400">无数据</div>;
@@ -233,7 +238,7 @@ const LifeKLineChart: React.FC<LifeKLineChartProps> = ({ data }) => {
              <LabelList 
               dataKey="high" 
               position="top" 
-              content={<PeakLabel maxHigh={maxHigh} />}
+              content={<PeakLabel peakAge={peakPoint?.age} />}
             />
           </Bar>
           

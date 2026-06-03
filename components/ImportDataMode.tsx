@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { LifeDestinyResult } from '../types';
-import { Copy, CheckCircle, AlertCircle, Upload, Sparkles, MessageSquare, ArrowRight, Calendar } from 'lucide-react';
+import { DivinationApiConfig, Gender, LifeDestinyResult } from '../types';
+import { Copy, CheckCircle, AlertCircle, Upload, Sparkles, MessageSquare, ArrowRight, Calendar, Loader2 } from 'lucide-react';
 import { BAZI_SYSTEM_INSTRUCTION } from '../constants';
 import { calculateBazi } from '../services/baziCalculator';
 import { generateUserPrompt, getDaYunDirection } from '../services/promptBuilder';
+import { generateLifeAnalysis } from '../services/geminiService';
+import { hasUsableDivinationApiConfig } from '../services/fortuneService';
 import CitySelector from './CitySelector';
 
 interface ImportDataModeProps {
     onDataImport: (data: LifeDestinyResult) => void;
+    apiConfig: DivinationApiConfig;
 }
 
-const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
+const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport, apiConfig }) => {
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [baziInfo, setBaziInfo] = useState({
         name: '',
@@ -30,6 +33,11 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
     const [birthTime, setBirthTime] = useState('');
     const [cityLongitude, setCityLongitude] = useState(116.4);
     const [baziError, setBaziError] = useState<string | null>(null);
+    const [onlineError, setOnlineError] = useState<string | null>(null);
+    const [isGeneratingOnline, setIsGeneratingOnline] = useState(false);
+    const [onlineProgress, setOnlineProgress] = useState('');
+
+    const isOnlineConfigured = hasUsableDivinationApiConfig(apiConfig);
 
     useEffect(() => {
         if (!birthDate || !birthTime) {
@@ -159,10 +167,50 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
     const handleBaziChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setBaziInfo(prev => ({ ...prev, [name]: value }));
+        setOnlineError(null);
+        setOnlineProgress('');
     };
 
     const isStep1Valid = baziInfo.birthYear && baziInfo.yearPillar && baziInfo.monthPillar &&
         baziInfo.dayPillar && baziInfo.hourPillar && baziInfo.startAge && baziInfo.firstDaYun;
+
+    const handleGenerateOrShowPrompt = async () => {
+        setOnlineError(null);
+        setOnlineProgress('');
+
+        if (!isOnlineConfigured) {
+            setStep(2);
+            return;
+        }
+
+        setIsGeneratingOnline(true);
+        setOnlineProgress('正在连接在线 AI...');
+        try {
+            const data = await generateLifeAnalysis({
+                name: baziInfo.name,
+                gender: baziInfo.gender === 'Male' ? Gender.MALE : Gender.FEMALE,
+                birthYear: baziInfo.birthYear,
+                yearPillar: baziInfo.yearPillar,
+                monthPillar: baziInfo.monthPillar,
+                dayPillar: baziInfo.dayPillar,
+                hourPillar: baziInfo.hourPillar,
+                startAge: baziInfo.startAge,
+                firstDaYun: baziInfo.firstDaYun,
+                apiKey: apiConfig.apiKey,
+                apiBaseUrl: apiConfig.apiBaseUrl,
+                modelName: apiConfig.modelName,
+            }, {
+                onProgress: setOnlineProgress,
+            });
+            setOnlineProgress('已完成，正在生成报告...');
+            onDataImport(data);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '在线生成失败';
+            setOnlineError(message);
+        } finally {
+            setIsGeneratingOnline(false);
+        }
+    };
 
     return (
         <div className="w-full max-w-2xl bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
@@ -188,7 +236,9 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                 <div className="space-y-6">
                     <div className="text-center">
                         <h2 className="text-2xl font-bold font-serif-sc text-gray-800 mb-2">第一步：输入八字信息</h2>
-                        <p className="text-gray-500 text-sm">填写您的四柱与大运信息</p>
+                        <p className="text-gray-500 text-sm">
+                            {isOnlineConfigured ? '已检测到在线 AI 配置，提交后将直接生成 K 线' : '未检测到在线 AI 配置，将生成可复制提示词'}
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -323,12 +373,42 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport }) => {
                     </div>
 
                     <button
-                        onClick={() => setStep(2)}
-                        disabled={!isStep1Valid}
+                        onClick={handleGenerateOrShowPrompt}
+                        disabled={!isStep1Valid || isGeneratingOnline}
                         className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
                     >
-                        下一步：生成提示词 <ArrowRight className="w-5 h-5" />
+                        {isGeneratingOnline ? (
+                            <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                {onlineProgress || '在线生成中...'}
+                            </>
+                        ) : isOnlineConfigured ? (
+                            <>
+                                在线生成K线 <Sparkles className="w-5 h-5" />
+                            </>
+                        ) : (
+                            <>
+                                下一步：生成提示词 <ArrowRight className="w-5 h-5" />
+                            </>
+                        )}
                     </button>
+
+                    {onlineError && (
+                        <div className="flex items-start gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-100">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm">
+                                <p className="font-bold">在线 AI 生成失败</p>
+                                <p>{onlineError}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(2)}
+                                    className="mt-2 text-indigo-700 font-bold hover:text-indigo-900"
+                                >
+                                    改用复制提示词流程
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
