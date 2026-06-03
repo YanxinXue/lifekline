@@ -1,7 +1,7 @@
 
 import { UserInput, LifeDestinyResult, Gender } from "../types";
 import { BAZI_SYSTEM_INSTRUCTION } from "../constants";
-import { generateUserPrompt } from "./promptBuilder";
+import { generate100YearGanZhi, generateDaYunSequence, generateUserPrompt, getDaYunDirection } from "./promptBuilder";
 
 // Helper to determine stem polarity
 const getStemPolarity = (pillar: string): 'YANG' | 'YIN' => {
@@ -45,7 +45,39 @@ const normalizeNumber = (value: unknown, fallback: number) => {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 };
 
-const normalizeKLinePoint = (point: any, index: number) => {
+type DeterministicTimelinePoint = {
+  age: number;
+  year: number;
+  ganZhi: string;
+  daYun: string;
+};
+
+const buildDeterministicTimeline = (input: UserInput): DeterministicTimelinePoint[] => {
+  const birthYear = parseInt(input.birthYear, 10);
+  const startAge = parseInt(input.startAge, 10);
+  const safeBirthYear = Number.isFinite(birthYear) ? birthYear : new Date().getFullYear();
+  const safeStartAge = Number.isFinite(startAge) ? startAge : 1;
+  const { isForward } = getDaYunDirection(
+    input.yearPillar,
+    input.gender === Gender.MALE ? 'Male' : 'Female'
+  );
+  const yearGanZhiList = generate100YearGanZhi(safeBirthYear);
+  const daYunSequence = generateDaYunSequence(input.firstDaYun, isForward, 10);
+
+  return yearGanZhiList.map(item => {
+    if (item.age < safeStartAge) {
+      return { ...item, daYun: '童限' };
+    }
+
+    const daYunIndex = Math.floor((item.age - safeStartAge) / 10);
+    return {
+      ...item,
+      daYun: daYunSequence[daYunIndex] || daYunSequence[daYunSequence.length - 1] || '未知',
+    };
+  });
+};
+
+const normalizeKLinePoint = (point: any, index: number, timelinePoint?: DeterministicTimelinePoint) => {
   const open = clampNumber(normalizeNumber(point.open, 50), 0, 100);
   const close = clampNumber(normalizeNumber(point.close, open), 0, 100);
   const high = clampNumber(Math.max(normalizeNumber(point.high, Math.max(open, close)), open, close), 0, 100);
@@ -54,10 +86,10 @@ const normalizeKLinePoint = (point: any, index: number) => {
   const score = clampNumber(rawScore <= 10 ? rawScore * 10 : rawScore, 0, 100);
 
   return {
-    age: Math.round(normalizeNumber(point.age, index + 1)),
-    year: Math.round(normalizeNumber(point.year, 0)),
-    ganZhi: typeof point.ganZhi === 'string' && point.ganZhi.trim() ? point.ganZhi.trim() : '未知',
-    daYun: typeof point.daYun === 'string' && point.daYun.trim() ? point.daYun.trim() : '未知',
+    age: timelinePoint?.age ?? Math.round(normalizeNumber(point.age, index + 1)),
+    year: timelinePoint?.year ?? Math.round(normalizeNumber(point.year, 0)),
+    ganZhi: timelinePoint?.ganZhi ?? (typeof point.ganZhi === 'string' && point.ganZhi.trim() ? point.ganZhi.trim() : '未知'),
+    daYun: timelinePoint?.daYun ?? (typeof point.daYun === 'string' && point.daYun.trim() ? point.daYun.trim() : '未知'),
     open: Math.round(open),
     close: Math.round(close),
     high: Math.round(high),
@@ -205,6 +237,7 @@ export const generateLifeAnalysis = async (
     startAge: input.startAge,
     firstDaYun: input.firstDaYun,
   });
+  const deterministicTimeline = buildDeterministicTimeline(input);
 
   try {
     const requestUrl = normalizeChatCompletionsUrl(cleanBaseUrl);
@@ -269,8 +302,11 @@ export const generateLifeAnalysis = async (
       throw new Error("模型返回的数据格式不正确（缺失 chartPoints）。");
     }
 
+    const chartData = data.chartPoints.map((point: any, index: number) => (
+        normalizeKLinePoint(point, index, deterministicTimeline[index])
+      ));
     const result = {
-      chartData: data.chartPoints.map(normalizeKLinePoint),
+      chartData,
       analysis: {
         bazi: data.bazi || [],
         summary: data.summary || "无摘要",

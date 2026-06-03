@@ -488,9 +488,8 @@ const App: React.FC = () => {
                 洞悉命运起伏 <br />
                 <span className="text-indigo-600">预见人生轨迹</span>
               </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                结合<strong>传统八字命理</strong>与<strong>金融可视化技术</strong>，
-                将您的一生运势绘制成类似股票行情的K线图。
+              <p className="text-gray-600 text-lg leading-relaxed mb-6 max-w-3xl">
+                结合<strong>传统八字命理</strong>与<strong>金融可视化技术</strong>，将您的一生运势绘制成类似股票行情的K线图。
               </p>
 
               {/* 使用说明 */}

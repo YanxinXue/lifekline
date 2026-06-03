@@ -3,7 +3,7 @@ import { DivinationApiConfig, Gender, LifeDestinyResult } from '../types';
 import { Copy, CheckCircle, AlertCircle, Upload, Sparkles, MessageSquare, ArrowRight, Calendar, Loader2 } from 'lucide-react';
 import { BAZI_SYSTEM_INSTRUCTION } from '../constants';
 import { calculateBazi } from '../services/baziCalculator';
-import { generateUserPrompt, getDaYunDirection } from '../services/promptBuilder';
+import { generate100YearGanZhi, generateDaYunSequence, generateUserPrompt, getDaYunDirection } from '../services/promptBuilder';
 import { generateLifeAnalysis } from '../services/geminiService';
 import { hasUsableDivinationApiConfig } from '../services/fortuneService';
 import CitySelector from './CitySelector';
@@ -73,6 +73,35 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport, apiConfig
         return getDaYunDirection(baziInfo.yearPillar, baziInfo.gender as 'Male' | 'Female');
     };
 
+    const buildDeterministicChartData = (chartPoints: any[]) => {
+        const birthYear = parseInt(baziInfo.birthYear, 10);
+        const startAge = parseInt(baziInfo.startAge, 10);
+        if (!Number.isFinite(birthYear) || !Number.isFinite(startAge) || !baziInfo.firstDaYun) {
+            return chartPoints;
+        }
+
+        const { isForward } = getDaYunDirection(baziInfo.yearPillar, baziInfo.gender as 'Male' | 'Female');
+        const yearGanZhiList = generate100YearGanZhi(birthYear);
+        const daYunSequence = generateDaYunSequence(baziInfo.firstDaYun, isForward, 10);
+
+        return chartPoints.map((point, index) => {
+            const timelinePoint = yearGanZhiList[index];
+            if (!timelinePoint) return point;
+
+            const daYun = timelinePoint.age < startAge
+                ? '童限'
+                : daYunSequence[Math.floor((timelinePoint.age - startAge) / 10)] || daYunSequence[daYunSequence.length - 1] || point.daYun;
+
+            return {
+                ...point,
+                age: timelinePoint.age,
+                year: timelinePoint.year,
+                ganZhi: timelinePoint.ganZhi,
+                daYun,
+            };
+        });
+    };
+
     const generatePrompt = () => {
         if (!baziInfo.yearPillar || !baziInfo.firstDaYun || !baziInfo.startAge) {
             return '';
@@ -135,7 +164,7 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({ onDataImport, apiConfig
             }
 
             const result: LifeDestinyResult = {
-                chartData: data.chartPoints,
+                chartData: buildDeterministicChartData(data.chartPoints),
                 analysis: {
                     bazi: data.bazi || [],
                     summary: data.summary || "无摘要",
