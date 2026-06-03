@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-import { RefreshCw, Sparkles, AlertTriangle, Compass, ScrollText, Briefcase, Coins, Heart, Activity } from 'lucide-react';
+import { RefreshCw, Sparkles, AlertTriangle, Compass, ScrollText, Briefcase, Coins, Heart, Activity, Loader2 } from 'lucide-react';
 import { FORTUNE_STICKS } from '../data/fortuneSticks';
-import { DivinationResult } from '../types';
+import { generateFortuneInterpretation, hasUsableDivinationApiConfig } from '../services/fortuneService';
+import { DivinationApiConfig, DivinationResult } from '../types';
+
+interface DailyDivinationModeProps {
+  apiConfig: DivinationApiConfig;
+  mode: 'local' | 'online';
+  onRequestConfig: () => void;
+}
 
 const pickRandomStick = (previousId?: number) => {
   if (FORTUNE_STICKS.length <= 1) return FORTUNE_STICKS[0];
@@ -21,21 +28,53 @@ const getLevelColorClass = (fortuneLevel: string) => {
   return 'bg-red-500 text-white';
 };
 
-const DailyDivinationMode: React.FC = () => {
+const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mode, onRequestConfig }) => {
   const [result, setResult] = useState<DivinationResult | null>(null);
+  const [question, setQuestion] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const shouldShowAiSections = !aiLoading || mode !== 'online';
 
-  const drawStick = () => {
-    setResult({
-      stick: pickRandomStick(result?.stick.id),
-      generatedAt: new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }),
+  const drawStick = async () => {
+    const stick = pickRandomStick(result?.stick.id);
+    const generatedAt = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     });
+
+    setResult({ stick, generatedAt });
+    setAiError(null);
+
+    if (mode !== 'online') return;
+
+    if (!hasUsableDivinationApiConfig(apiConfig)) {
+      onRequestConfig();
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const aiInterpretation = await generateFortuneInterpretation(stick, { question }, apiConfig);
+      setResult(prev => {
+        if (!prev || prev.stick.id !== stick.id || prev.generatedAt !== generatedAt) return prev;
+        return { ...prev, aiInterpretation };
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'AI 解签失败';
+      setAiError(message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const returnToInput = () => {
+    setResult(null);
+    setAiError(null);
+    setAiLoading(false);
   };
 
   return (
@@ -55,14 +94,24 @@ const DailyDivinationMode: React.FC = () => {
           </div>
           <h3 className="text-2xl font-serif-sc font-bold text-gray-900 mb-3">静心片刻，抽取今日灵签</h3>
           <p className="text-gray-500 max-w-xl mx-auto mb-8">
-            当前为文化娱乐版黄大仙灵签，每次点击都会重新抽取一支签。
+            当前为{mode === 'online' ? '在线 AI 解签模式' : '本地灵签模式'}，问题可填可不填。
           </p>
+          <div className="max-w-xl mx-auto mb-6 text-left">
+            <label className="block text-xs font-bold text-gray-600 mb-2">想问的问题（可选）</label>
+            <textarea
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              placeholder="例如：最近是否适合换工作？不填写则按综合今日运势解读。"
+              className="w-full h-28 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-white"
+            />
+          </div>
           <button
             onClick={drawStick}
+            disabled={aiLoading}
             className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg transition-all"
           >
-            <Sparkles className="w-5 h-5" />
-            抽取今日灵签
+            {aiLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {aiLoading ? '解签中...' : '抽取今日灵签'}
           </button>
         </div>
       )}
@@ -98,72 +147,108 @@ const DailyDivinationMode: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={drawStick}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-gray-900 rounded-lg hover:bg-amber-50 transition-all font-bold text-sm self-start md:self-auto"
+                onClick={returnToInput}
+                disabled={aiLoading}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-gray-900 rounded-lg hover:bg-amber-50 disabled:bg-gray-200 transition-all font-bold text-sm self-start md:self-auto"
               >
-                <RefreshCw className="w-4 h-4" />
-                重新抽一签
+                {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {aiLoading ? '解签中...' : '重新抽一签'}
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-b border-gray-100">
-            <section className="p-6 md:p-8 border-b lg:border-b-0 lg:border-r border-gray-100">
-              <div className="flex items-center gap-2 text-indigo-700 mb-4">
+          {(question.trim() || mode === 'online' || aiError) && (
+            <div className="p-5 md:p-6 border-b border-gray-100 bg-gray-50">
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-bold text-gray-700">
+                  当前模式：{mode === 'online' ? '在线 AI 解签' : '本地灵签'}
+                  {mode === 'online' && !result.aiInterpretation && aiLoading && ' · 正在生成个性化解读'}
+                  {mode === 'online' && result.aiInterpretation && ' · 已生成个性化解读'}
+                </p>
+                {question.trim() && (
+                  <p className="text-sm text-gray-600">所问问题：{question.trim()}</p>
+                )}
+                {aiError && (
+                  <div className="flex items-start gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-100">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm">{aiError}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 border-b border-gray-100">
+            <section className="px-6 py-6 md:px-8 lg:col-span-2 bg-white border-b lg:border-b-0 lg:border-r border-gray-100">
+              <div className="flex items-center justify-center gap-2 text-indigo-700 mb-4">
                 <ScrollText className="w-5 h-5" />
                 <h4 className="font-serif-sc font-bold text-xl">签诗</h4>
               </div>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap font-serif-sc text-lg">{result.stick.poem}</p>
+              <div className="mx-auto max-w-sm border-y border-amber-200/80 py-3 md:py-4">
+                <div className="space-y-1.5 text-center font-serif-sc text-lg md:text-xl leading-[1.7] tracking-[0.06em] md:tracking-[0.08em] text-gray-950">
+                  {result.stick.poem.split('\n').map((line, index) => (
+                    <p key={`${line}-${index}`} className="break-keep">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
             </section>
 
-            <section className="p-6 md:p-8 border-b lg:border-b-0 lg:border-r border-gray-100">
+            <section className="px-6 py-6 md:px-8 lg:col-span-3 bg-white">
               <div className="flex items-center gap-2 text-emerald-700 mb-4">
                 <Compass className="w-5 h-5" />
                 <h4 className="font-serif-sc font-bold text-xl">总解</h4>
               </div>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.stick.meaning}</p>
+              <p className="text-gray-700 leading-8 whitespace-pre-wrap">{result.stick.meaning}</p>
             </section>
 
-            <section className="p-6 md:p-8">
-              <div className="flex items-center gap-2 text-amber-700 mb-4">
-                <AlertTriangle className="w-5 h-5" />
-                <h4 className="font-serif-sc font-bold text-xl">今日建议</h4>
-              </div>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.stick.advice}</p>
-              <p className="text-red-600 leading-relaxed whitespace-pre-wrap mt-4 text-sm font-medium">{result.stick.caution}</p>
-            </section>
+            {shouldShowAiSections && (
+                <section className="px-6 py-7 md:px-10 md:py-9 bg-white border-t border-gray-100 lg:col-span-5">
+                  <div className="flex items-center gap-2 text-amber-700 mb-4">
+                    <AlertTriangle className="w-5 h-5" />
+                    <h4 className="font-serif-sc font-bold text-xl">今日建议</h4>
+                  </div>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.aiInterpretation?.advice || result.stick.advice}</p>
+                  <p className="text-red-600 leading-relaxed whitespace-pre-wrap mt-4 text-sm font-medium">{result.aiInterpretation?.caution || result.stick.caution}</p>
+                </section>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            <section className="p-6 border-b md:border-r lg:border-b-0 border-gray-100">
-              <div className="flex items-center gap-2 text-blue-700 mb-3">
-                <Briefcase className="w-4 h-4" />
-                <h4 className="font-bold">事业</h4>
+          {shouldShowAiSections && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+                <section className="p-6 border-b md:border-r lg:border-b-0 border-gray-100">
+                  <div className="flex items-center gap-2 text-blue-700 mb-3">
+                    <Briefcase className="w-4 h-4" />
+                    <h4 className="font-bold">事业</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{result.aiInterpretation?.career || result.stick.career}</p>
+                </section>
+                <section className="p-6 border-b lg:border-b-0 lg:border-r border-gray-100">
+                  <div className="flex items-center gap-2 text-amber-700 mb-3">
+                    <Coins className="w-4 h-4" />
+                    <h4 className="font-bold">财运</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{result.aiInterpretation?.wealth || result.stick.wealth}</p>
+                </section>
+                <section className="p-6 border-b md:border-b-0 md:border-r border-gray-100">
+                  <div className="flex items-center gap-2 text-pink-700 mb-3">
+                    <Heart className="w-4 h-4" />
+                    <h4 className="font-bold">感情</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{result.aiInterpretation?.love || result.stick.love}</p>
+                </section>
+                <section className="p-6">
+                  <div className="flex items-center gap-2 text-emerald-700 mb-3">
+                    <Activity className="w-4 h-4" />
+                    <h4 className="font-bold">健康</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{result.aiInterpretation?.health || result.stick.health}</p>
+                </section>
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">{result.stick.career}</p>
-            </section>
-            <section className="p-6 border-b lg:border-b-0 lg:border-r border-gray-100">
-              <div className="flex items-center gap-2 text-amber-700 mb-3">
-                <Coins className="w-4 h-4" />
-                <h4 className="font-bold">财运</h4>
-              </div>
-              <p className="text-sm text-gray-600 leading-relaxed">{result.stick.wealth}</p>
-            </section>
-            <section className="p-6 border-b md:border-b-0 md:border-r border-gray-100">
-              <div className="flex items-center gap-2 text-pink-700 mb-3">
-                <Heart className="w-4 h-4" />
-                <h4 className="font-bold">感情</h4>
-              </div>
-              <p className="text-sm text-gray-600 leading-relaxed">{result.stick.love}</p>
-            </section>
-            <section className="p-6">
-              <div className="flex items-center gap-2 text-emerald-700 mb-3">
-                <Activity className="w-4 h-4" />
-                <h4 className="font-bold">健康</h4>
-              </div>
-              <p className="text-sm text-gray-600 leading-relaxed">{result.stick.health}</p>
-            </section>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>

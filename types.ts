@@ -88,7 +88,27 @@ export interface FortuneStick {
   caution: string;
 }
 
+export interface DivinationApiConfig {
+  apiKey: string;
+  apiBaseUrl: string;
+  modelName: string;
+}
+
+export interface DivinationQuestionInput {
+  question: string;
+}
+
+export interface AiFortuneInterpretation {
+  career: string;
+  wealth: string;
+  love: string;
+  health: string;
+  advice: string;
+  caution: string;
+}
+
 export interface DivinationResult {
   stick: FortuneStick;
   generatedAt: string;
+  aiInterpretation?: AiFortuneInterpretation;
 }

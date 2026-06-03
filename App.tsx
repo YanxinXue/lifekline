@@ -4,13 +4,22 @@ import LifeKLineChart from './components/LifeKLineChart';
 import AnalysisResult from './components/AnalysisResult';
 import ImportDataMode from './components/ImportDataMode';
 import DailyDivinationMode from './components/DailyDivinationMode';
-import { LifeDestinyResult } from './types';
+import { DivinationApiConfig, LifeDestinyResult } from './types';
+import { hasUsableDivinationApiConfig, loadDivinationApiConfig, saveDivinationApiConfig } from './services/fortuneService';
 import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, LineChart, ScrollText } from 'lucide-react';
 
 type PageMode = 'lifeKline' | 'divination';
+type DivinationMode = 'local' | 'online';
 
 const App: React.FC = () => {
   const [pageMode, setPageMode] = useState<PageMode>('divination');
+  const [divinationMode, setDivinationMode] = useState<DivinationMode>(() => (
+    hasUsableDivinationApiConfig(loadDivinationApiConfig()) ? 'online' : 'local'
+  ));
+  const [divinationApiConfig, setDivinationApiConfig] = useState<DivinationApiConfig>(loadDivinationApiConfig);
+  const [divinationConfigDraft, setDivinationConfigDraft] = useState<DivinationApiConfig>(loadDivinationApiConfig);
+  const [isDivinationConfigOpen, setIsDivinationConfigOpen] = useState(false);
+  const [divinationConfigError, setDivinationConfigError] = useState<string | null>(null);
   const [result, setResult] = useState<LifeDestinyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
@@ -111,6 +120,58 @@ const App: React.FC = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const openDivinationConfig = () => {
+    const cachedConfig = loadDivinationApiConfig();
+    setDivinationConfigDraft(cachedConfig);
+    setDivinationConfigError(null);
+    setIsDivinationConfigOpen(true);
+  };
+
+  const handleDivinationModeClick = () => {
+    if (pageMode !== 'divination') return;
+
+    if (divinationMode === 'online') {
+      openDivinationConfig();
+      return;
+    }
+
+    const cachedConfig = loadDivinationApiConfig();
+    setDivinationApiConfig(cachedConfig);
+
+    if (hasUsableDivinationApiConfig(cachedConfig)) {
+      setDivinationMode('online');
+      return;
+    }
+
+    setDivinationConfigDraft(cachedConfig);
+    setDivinationConfigError('未找到可用的在线解签配置，请先填写 API 信息。');
+    setIsDivinationConfigOpen(true);
+  };
+
+  const handleDivinationConfigChange = (field: keyof DivinationApiConfig, value: string) => {
+    setDivinationConfigDraft(prev => ({ ...prev, [field]: value }));
+    setDivinationConfigError(null);
+  };
+
+  const handleSaveDivinationConfig = () => {
+    if (!hasUsableDivinationApiConfig(divinationConfigDraft)) {
+      setDivinationConfigError('请填写 API Key、API Base URL 和模型名称。');
+      return;
+    }
+
+    saveDivinationApiConfig(divinationConfigDraft);
+    setDivinationApiConfig(divinationConfigDraft);
+    setDivinationMode('online');
+    setIsDivinationConfigOpen(false);
+    setDivinationConfigError(null);
+  };
+
+  const handleSwitchToLocalDivination = () => {
+    setDivinationMode('local');
+    setIsDivinationConfigOpen(false);
+    setDivinationConfigError(null);
   };
 
   const handleSaveHtml = () => {
@@ -270,12 +331,104 @@ const App: React.FC = () => {
               <p className="text-xs text-gray-500 uppercase tracking-widest">Life Destiny K-Line</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1.5 rounded-full">
+          <button
+            type="button"
+            onClick={handleDivinationModeClick}
+            className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full transition-all ${pageMode === 'divination'
+              ? divinationMode === 'online'
+                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              : 'bg-gray-100 text-gray-500'
+              }`}
+            title={pageMode === 'divination' ? '点击检查本地缓存中的在线解签配置' : undefined}
+          >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            {pageMode === 'lifeKline' ? '基于 AI 大模型驱动' : '本地灵签模式'}
-          </div>
+            {pageMode === 'lifeKline'
+              ? '基于 AI 大模型驱动'
+              : divinationMode === 'online'
+                ? '在线灵签模式'
+                : '本地灵签模式'}
+          </button>
         </div>
       </header>
+
+      {isDivinationConfigOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/40 no-print flex items-center justify-center px-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线灵签模式</h3>
+              <p className="text-sm text-gray-500 mt-1">配置只保存在当前浏览器缓存中，不上传后端。</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">API Base URL</label>
+                <input
+                  type="text"
+                  value={divinationConfigDraft.apiBaseUrl}
+                  onChange={e => handleDivinationConfigChange('apiBaseUrl', e.target.value)}
+                  placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Model</label>
+                <input
+                  type="text"
+                  value={divinationConfigDraft.modelName}
+                  onChange={e => handleDivinationConfigChange('modelName', e.target.value)}
+                  placeholder="qwen3.7-plus"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={divinationConfigDraft.apiKey}
+                  onChange={e => handleDivinationConfigChange('apiKey', e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">请求由浏览器直接发往你填写的 OpenAI-compatible API 地址。</p>
+              </div>
+
+              {divinationConfigError && (
+                <div className="flex items-start gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-100">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm">{divinationConfigError}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleSwitchToLocalDivination}
+                className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-bold text-sm"
+              >
+                切换为本地模式
+              </button>
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsDivinationConfigOpen(false)}
+                  className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-bold text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDivinationConfig}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-bold text-sm"
+                >
+                  保存并启用在线模式
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 md:py-12 flex flex-col gap-12">
@@ -305,7 +458,13 @@ const App: React.FC = () => {
         </div>
 
         {/* If no result, show intro and form */}
-        {pageMode === 'divination' && <DailyDivinationMode />}
+        {pageMode === 'divination' && (
+          <DailyDivinationMode
+            apiConfig={divinationApiConfig}
+            mode={divinationMode}
+            onRequestConfig={openDivinationConfig}
+          />
+        )}
 
         {pageMode === 'lifeKline' && !result && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-fade-in">
