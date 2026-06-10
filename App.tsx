@@ -4,11 +4,12 @@ import LifeKLineChart from './components/LifeKLineChart';
 import AnalysisResult from './components/AnalysisResult';
 import ImportDataMode from './components/ImportDataMode';
 import DailyDivinationMode from './components/DailyDivinationMode';
+import AlmanacMode from './components/AlmanacMode';
 import { DivinationApiConfig, LifeDestinyResult } from './types';
 import { hasUsableDivinationApiConfig, loadDivinationApiConfig, saveDivinationApiConfig } from './services/fortuneService';
-import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, LineChart, ScrollText } from 'lucide-react';
+import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, LineChart, ScrollText, CalendarDays } from 'lucide-react';
 
-type PageMode = 'lifeKline' | 'divination';
+type PageMode = 'lifeKline' | 'divination' | 'almanac';
 type DivinationMode = 'local' | 'online';
 
 const App: React.FC = () => {
@@ -130,7 +131,7 @@ const App: React.FC = () => {
   };
 
   const handleDivinationModeClick = () => {
-    if (pageMode === 'lifeKline') {
+    if (pageMode !== 'divination') {
       openDivinationConfig();
       return;
     }
@@ -323,6 +324,19 @@ const App: React.FC = () => {
       return current.age < prev.age ? current : prev;
     });
   }, [result]);
+  const isAiConfigured = hasUsableDivinationApiConfig(divinationApiConfig);
+  const aiConfigButtonTitle = pageMode === 'divination'
+    ? '点击检查本地缓存中的在线解签配置'
+    : pageMode === 'almanac'
+      ? '点击配置黄历事项解读在线 AI 模型'
+      : '点击配置人生K线在线 AI 模型';
+  const aiConfigButtonLabel = pageMode === 'divination'
+    ? divinationMode === 'online'
+      ? '在线灵签模式'
+      : '本地灵签模式'
+    : isAiConfigured
+      ? '在线AI已配置'
+      : '配置在线AI';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center">
@@ -345,20 +359,14 @@ const App: React.FC = () => {
               ? divinationMode === 'online'
                 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                 : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              : hasUsableDivinationApiConfig(divinationApiConfig)
+              : isAiConfigured
                 ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                 : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
-            title={pageMode === 'divination' ? '点击检查本地缓存中的在线解签配置' : '点击配置人生K线在线 AI 模型'}
+            title={aiConfigButtonTitle}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            {pageMode === 'lifeKline'
-              ? hasUsableDivinationApiConfig(divinationApiConfig)
-                ? '在线AI已配置'
-                : '配置在线AI'
-              : divinationMode === 'online'
-                ? '在线灵签模式'
-                : '本地灵签模式'}
+            {aiConfigButtonLabel}
           </button>
         </div>
       </header>
@@ -368,7 +376,7 @@ const App: React.FC = () => {
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100">
               <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线 AI 模型</h3>
-              <p className="text-sm text-gray-500 mt-1">用于黄大仙灵签和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
+              <p className="text-sm text-gray-500 mt-1">用于黄大仙灵签、黄历和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
             </div>
 
             <div className="p-6 space-y-4">
@@ -448,7 +456,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 md:py-12 flex flex-col gap-12">
         <div className="no-print flex justify-center">
-          <div className="inline-flex w-full max-w-md rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-1 shadow-sm overflow-x-auto">
             <button
               onClick={() => setPageMode('divination')}
               className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${pageMode === 'divination'
@@ -458,6 +466,16 @@ const App: React.FC = () => {
             >
               <ScrollText className="w-4 h-4" />
               黄大仙灵签
+            </button>
+            <button
+              onClick={() => setPageMode('almanac')}
+              className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${pageMode === 'almanac'
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              黄历
             </button>
             <button
               onClick={() => setPageMode('lifeKline')}
@@ -477,6 +495,13 @@ const App: React.FC = () => {
           <DailyDivinationMode
             apiConfig={divinationApiConfig}
             mode={divinationMode}
+            onRequestConfig={openDivinationConfig}
+          />
+        )}
+
+        {pageMode === 'almanac' && (
+          <AlmanacMode
+            apiConfig={divinationApiConfig}
             onRequestConfig={openDivinationConfig}
           />
         )}

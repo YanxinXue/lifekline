@@ -5,6 +5,20 @@ declare module 'lunar-javascript' {
 
   export interface LunarDate {
     getEightChar(): EightChar;
+    toString(): string;
+    getYearInGanZhi(): string;
+    getMonthInGanZhi(): string;
+    getDayInGanZhi(): string;
+    getShengxiao(): string;
+    getChongDesc(): string;
+    getSha(): string;
+    getDayYi(sect?: 1 | 2): string[];
+    getDayJi(sect?: 1 | 2): string[];
+    getDayJiShen(): string[];
+    getXiu(): string;
+    getXiuLuck(): string;
+    getPengZuGan(): string;
+    getPengZuZhi(): string;
   }
 
   export interface EightChar {
@@ -25,6 +39,7 @@ declare module 'lunar-javascript' {
   }
 
   export const Solar: {
+    fromYmd(year: number, month: number, day: number): SolarDate;
     fromYmdHms(
       year: number,
       month: number,

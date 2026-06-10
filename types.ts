@@ -112,3 +112,33 @@ export interface DivinationResult {
   generatedAt: string;
   aiInterpretation?: AiFortuneInterpretation;
 }
+
+export interface AlmanacDay {
+  solarDate: string;
+  weekday: string;
+  lunarDate: string;
+  yearGanZhi: string;
+  monthGanZhi: string;
+  dayGanZhi: string;
+  zodiac: string;
+  clash: string;
+  sha: string;
+  suitable: string[];
+  avoid: string[];
+  luckyGods: string[];
+  star: string;
+  starLuck: string;
+  pengZu: string[];
+  generatedAt: string;
+}
+
+export interface AlmanacQuestionInput {
+  matter: string;
+}
+
+export interface AlmanacInterpretation {
+  summary: string;
+  suitable: string;
+  risk: string;
+  suggestion: string;
+}
