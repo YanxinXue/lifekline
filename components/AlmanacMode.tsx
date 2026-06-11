@@ -14,6 +14,9 @@ import {
 import { generateAlmanacDay, generateAlmanacInterpretation, formatDateInputValue } from '../services/almanacService';
 import { hasUsableDivinationApiConfig } from '../services/fortuneService';
 import { AlmanacInterpretation, DivinationApiConfig } from '../types';
+import { getAlmanacGodExplanation } from '../data/almanacGods';
+import { getPengZuTabooExplanation } from '../data/pengZuTaboos';
+import { getStarMansionExplanation } from '../data/starMansions';
 
 interface AlmanacModeProps {
   apiConfig: DivinationApiConfig;
@@ -27,7 +30,11 @@ const DetailItem: React.FC<{ label: string; value: string }> = ({ label, value }
   </div>
 );
 
-const TagList: React.FC<{ items: string[]; tone: 'good' | 'bad' | 'neutral' }> = ({ items, tone }) => {
+const TagList: React.FC<{
+  items: string[];
+  tone: 'good' | 'bad' | 'neutral';
+  getDescription?: (item: string) => React.ReactNode;
+}> = ({ items, tone, getDescription }) => {
   const toneClass = tone === 'good'
     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
     : tone === 'bad'
@@ -36,11 +43,96 @@ const TagList: React.FC<{ items: string[]; tone: 'good' | 'bad' | 'neutral' }> =
 
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
-        <span key={item} className={`px-3 py-1.5 rounded-full border text-sm font-bold ${toneClass}`}>
-          {item}
-        </span>
-      ))}
+      {items.map((item) => {
+        const description = getDescription?.(item);
+
+        return (
+          <span key={item} className="relative inline-flex group">
+            <span
+              tabIndex={description ? 0 : undefined}
+              className={`px-3 py-1.5 rounded-full border text-sm font-bold outline-none ${description ? 'cursor-help focus:ring-2 focus:ring-indigo-400' : ''} ${toneClass}`}
+            >
+              {item}
+            </span>
+            {description && (
+              <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl group-hover:block group-focus-within:block">
+                {description}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+const AlmanacGodTooltip: React.FC<{ name: string }> = ({ name }) => {
+  const explanation = getAlmanacGodExplanation(name);
+
+  return (
+    <span className="block space-y-2">
+      <span className="block text-sm font-bold text-gray-900">{name}</span>
+      <span className="block text-xs leading-relaxed text-gray-700">{explanation.plainMeaning}</span>
+      <span className="block text-xs leading-relaxed text-gray-600">
+        <span className="font-bold text-indigo-700">常见适合：</span>
+        {explanation.suitableFor.join('、')}
+      </span>
+      <span className="block text-xs leading-relaxed text-amber-700">{explanation.caution}</span>
+    </span>
+  );
+};
+
+const PengZuTabooItem: React.FC<{ item: string }> = ({ item }) => {
+  const explanation = getPengZuTabooExplanation(item);
+
+  return (
+    <div className="relative group">
+      <p
+        tabIndex={0}
+        className="inline-block cursor-help rounded-md text-sm text-gray-700 leading-relaxed outline-none focus:ring-2 focus:ring-indigo-400"
+      >
+        {item}
+      </p>
+      <div className="pointer-events-none absolute right-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl group-hover:block group-focus-within:block">
+        <p className="text-sm font-bold text-gray-900 mb-2">{item}</p>
+        <p className="text-xs leading-relaxed text-gray-700 mb-2">{explanation.plainMeaning}</p>
+        <p className="text-xs leading-relaxed text-gray-600 mb-2">
+          <span className="font-bold text-indigo-700">提醒：</span>
+          {explanation.reminder}
+        </p>
+        <p className="text-xs leading-relaxed text-amber-700">{explanation.caution}</p>
+      </div>
+    </div>
+  );
+};
+
+const getStarMansionName = (star: string) => {
+  const match = /^(.+?)宿/.exec(star);
+  return match?.[1] || star;
+};
+
+const StarMansionItem: React.FC<{ star: string }> = ({ star }) => {
+  const starName = getStarMansionName(star);
+  const explanation = getStarMansionExplanation(starName);
+
+  return (
+    <div className="relative group">
+      <p
+        tabIndex={0}
+        className="inline-block cursor-help rounded-md text-gray-800 font-bold leading-relaxed outline-none focus:ring-2 focus:ring-indigo-400"
+      >
+        {star}
+      </p>
+      <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl group-hover:block group-focus-within:block">
+        <p className="text-sm font-bold text-gray-900 mb-1">{starName}宿</p>
+        <p className="text-xs font-bold text-indigo-700 mb-2">{explanation.group}</p>
+        <p className="text-xs leading-relaxed text-gray-700 mb-2">{explanation.plainMeaning}</p>
+        <p className="text-xs leading-relaxed text-gray-600 mb-2">
+          <span className="font-bold text-indigo-700">常见适合：</span>
+          {explanation.suitableFor.join('、')}
+        </p>
+        <p className="text-xs leading-relaxed text-amber-700">{explanation.caution}</p>
+      </div>
     </div>
   );
 };
@@ -190,7 +282,11 @@ const AlmanacMode: React.FC<AlmanacModeProps> = ({ apiConfig, onRequestConfig })
                 <Sparkles className="w-5 h-5 text-indigo-600" />
                 <h4 className="font-serif-sc font-bold text-lg text-gray-900">吉神</h4>
               </div>
-              <TagList items={almanac.luckyGods} tone="neutral" />
+              <TagList
+                items={almanac.luckyGods}
+                tone="neutral"
+                getDescription={(item) => <AlmanacGodTooltip name={item} />}
+              />
             </section>
 
             <section className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
@@ -198,7 +294,7 @@ const AlmanacMode: React.FC<AlmanacModeProps> = ({ apiConfig, onRequestConfig })
                 <Moon className="w-5 h-5 text-indigo-600" />
                 <h4 className="font-serif-sc font-bold text-lg text-gray-900">星宿</h4>
               </div>
-              <p className="text-gray-800 font-bold leading-relaxed">{almanac.star}</p>
+              <StarMansionItem star={almanac.star} />
             </section>
 
             <section className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
@@ -208,7 +304,7 @@ const AlmanacMode: React.FC<AlmanacModeProps> = ({ apiConfig, onRequestConfig })
               </div>
               <div className="space-y-2">
                 {almanac.pengZu.map(item => (
-                  <p key={item} className="text-sm text-gray-700 leading-relaxed">{item}</p>
+                  <PengZuTabooItem key={item} item={item} />
                 ))}
               </div>
             </section>

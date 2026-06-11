@@ -10,14 +10,60 @@ interface DailyDivinationModeProps {
   onRequestConfig: () => void;
 }
 
-const pickRandomStick = (previousId?: number) => {
-  if (FORTUNE_STICKS.length <= 1) return FORTUNE_STICKS[0];
+const DIVINATION_BROWSER_ID_KEY = 'lifekline_divination_browser_id';
+let fallbackBrowserId = '';
 
-  let next = FORTUNE_STICKS[Math.floor(Math.random() * FORTUNE_STICKS.length)];
-  while (next.id === previousId) {
-    next = FORTUNE_STICKS[Math.floor(Math.random() * FORTUNE_STICKS.length)];
+const createBrowserId = () => {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+
+  if (globalThis.crypto?.getRandomValues) {
+    const values = new Uint32Array(4);
+    globalThis.crypto.getRandomValues(values);
+    return Array.from(values, value => value.toString(36)).join('-');
   }
-  return next;
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
+const getBrowserId = () => {
+  if (typeof window === 'undefined') return 'server';
+
+  try {
+    const cachedId = window.localStorage.getItem(DIVINATION_BROWSER_ID_KEY);
+    if (cachedId) return cachedId;
+
+    const browserId = createBrowserId();
+    window.localStorage.setItem(DIVINATION_BROWSER_ID_KEY, browserId);
+    return browserId;
+  } catch {
+    if (!fallbackBrowserId) fallbackBrowserId = createBrowserId();
+    return fallbackBrowserId;
+  }
+};
+
+const getLocalDateSeed = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeQuestionSeed = (value: string) => value.trim().replace(/\s+/g, ' ') || '综合今日运势';
+
+const hashSeed = (seed: string) => {
+  let hash = 2166136261;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+};
+
+const pickSeededStick = (question: string) => {
+  const seed = `${getLocalDateSeed()}|${getBrowserId()}|${normalizeQuestionSeed(question)}`;
+  return FORTUNE_STICKS[hashSeed(seed) % FORTUNE_STICKS.length];
 };
 
 const getLevelColorClass = (fortuneLevel: string) => {
@@ -36,7 +82,7 @@ const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mo
   const shouldShowAiSections = !aiLoading || mode !== 'online';
 
   const drawStick = async () => {
-    const stick = pickRandomStick(result?.stick.id);
+    const stick = pickSeededStick(question);
     const generatedAt = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
