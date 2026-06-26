@@ -13,7 +13,7 @@ type PageMode = 'lifeKline' | 'divination' | 'almanac';
 type DivinationMode = 'local' | 'online';
 
 const App: React.FC = () => {
-  const [pageMode, setPageMode] = useState<PageMode>('divination');
+  const [pageMode, setPageMode] = useState<PageMode>('almanac');
   const [divinationMode, setDivinationMode] = useState<DivinationMode>(() => (
     hasUsableDivinationApiConfig(loadDivinationApiConfig()) ? 'online' : 'local'
   ));

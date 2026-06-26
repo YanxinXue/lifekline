@@ -209,8 +209,8 @@ const AlmanacMode: React.FC<AlmanacModeProps> = ({ apiConfig, onRequestConfig })
         </p>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-gray-900 text-amber-50 px-6 py-7 md:px-10">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-xl overflow-visible">
+        <div className="bg-gray-900 text-amber-50 px-6 py-7 md:px-10 rounded-t-2xl">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div>
               <p className="text-xs text-gray-400 mb-2">计算时间 {almanac.generatedAt}</p>

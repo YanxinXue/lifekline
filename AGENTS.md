@@ -2,9 +2,10 @@
 
 ## Overview
 
-Single-page React + Vite app (no monorepo). Chinese UI with two independent modes:
+Single-page React + Vite app (no monorepo). Chinese UI with three independent modes:
 
-- **黄大仙灵签**: default first screen. Randomly draws one of 100 Wong Tai Sin fortune sticks, shows local sign text, and can optionally call an OpenAI-compatible API from the browser for personalized interpretation.
+- **今日黄历**: default first screen. Generates local almanac data for the selected date, with optional online AI interpretation for a user-provided matter.
+- **黄大仙灵签**: randomly draws one of 100 Wong Tai Sin fortune sticks, shows local sign text, and can optionally call an OpenAI-compatible API from the browser for personalized interpretation.
 - **人生 K 线**: bazi (八字命理) workflow for generating "Life Destiny K-Line" charts. If browser-local online AI config exists, it calls the OpenAI-compatible API directly; otherwise it falls back to the copy-prompt/paste-JSON workflow.
 
 ## Commands
@@ -20,7 +21,8 @@ There are **no** lint, test, format, or typecheck scripts. `vite build` is the o
 | Path | Role |
 |---|---|
 | `index.tsx` → `App.tsx` | Entry point and main layout |
-| `components/DailyDivinationMode.tsx` | Default UI: Wong Tai Sin fortune stick draw, local sign display, optional online AI interpretation |
+| `components/AlmanacMode.tsx` | Default UI: local almanac display and optional online AI interpretation |
+| `components/DailyDivinationMode.tsx` | Wong Tai Sin fortune stick draw, local sign display, optional online AI interpretation |
 | `data/fortuneSticks.ts` | Local static data for 100 Wong Tai Sin fortune sticks: sign number, title, level, poem, story, and full interpretation |
 | `services/fortuneService.ts` | Browser-side OpenAI-compatible client for online fortune-stick interpretation + localStorage config helpers |
 | `components/ImportDataMode.tsx` | Life K-Line UI: input bazi, then either direct online AI generation or fallback copy-prompt/paste-JSON workflow |
@@ -36,7 +38,7 @@ There are **no** lint, test, format, or typecheck scripts. `vite build` is the o
 - **Tailwind via CDN `<script>` tag** in `index.html`, not PostCSS. No `tailwind.config.js` exists.
 - **Import map in `index.html`** pins esm.sh URLs for React 19, Recharts 3.x, etc. This is separate from npm deps.
 - **No CSS files found** — all styling is Tailwind utility classes (via CDN) and inline styles in `index.html`'s `<style>` block.
-- **Default route state**: `App.tsx` initializes `pageMode` to `divination`, so the first screen is 黄大仙灵签. Users can switch to 人生K线 via the top tab.
+- **Default route state**: `App.tsx` initializes `pageMode` to `almanac`, so the first screen is 今日黄历. Users can switch to 黄大仙灵签 or 人生K线 via the top tab.
 - **Fortune-stick data is local**: `data/fortuneSticks.ts` contains 100 static sign records. Do not mix fortune-stick results into Life K-Line JSON export.
 - **Online AI config is browser-local only**: API Key, base URL, and model are stored in `localStorage` under `lifekline_divination_api_config`; there is no backend persistence. The same config is reused by both Wong Tai Sin fortune sticks and Life K-Line.
 - **Online divination calls are browser-side**: `services/fortuneService.ts` sends OpenAI-compatible chat-completions requests directly from the user's browser. Debug logs intentionally print request body and model response to the browser console, but not the API key.
