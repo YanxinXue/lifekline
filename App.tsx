@@ -376,7 +376,7 @@ const App: React.FC = () => {
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100">
               <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线 AI 模型</h3>
-              <p className="text-sm text-gray-500 mt-1">用于黄大仙灵签、黄历和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
+              <p className="text-sm text-gray-500 mt-1">用于观音灵签、黄历和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
             </div>
 
             <div className="p-6 space-y-4">
@@ -465,7 +465,7 @@ const App: React.FC = () => {
                 }`}
             >
               <ScrollText className="w-4 h-4" />
-              黄大仙灵签
+              观音灵签
             </button>
             <button
               onClick={() => setPageMode('almanac')}

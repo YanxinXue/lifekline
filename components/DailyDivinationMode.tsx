@@ -67,12 +67,12 @@ const pickSeededStick = (question: string) => {
 };
 
 const getLevelColorClass = (fortuneLevel: string) => {
-  if (fortuneLevel === '大吉') return 'bg-emerald-500 text-white';
   if (fortuneLevel === '吉') return 'bg-indigo-500 text-white';
-  if (fortuneLevel === '中吉') return 'bg-amber-400 text-gray-900';
   if (fortuneLevel === '平') return 'bg-gray-200 text-gray-700';
   return 'bg-red-500 text-white';
 };
+
+const getDisplayMeaning = (meaning: string) => meaning.split(/\n仙机[:：]/)[0].trim();
 
 const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mode, onRequestConfig }) => {
   const [result, setResult] = useState<DivinationResult | null>(null);
@@ -126,10 +126,10 @@ const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mo
   return (
     <div className="w-full max-w-5xl mx-auto animate-fade-in">
       <div className="text-center mb-8">
-        <p className="text-sm font-bold text-indigo-600 tracking-widest uppercase mb-3">Wong Tai Sin Fortune Stick</p>
-        <h2 className="text-4xl md:text-5xl font-serif-sc font-bold text-gray-900 mb-4">黄大仙灵签</h2>
+        <p className="text-sm font-bold text-indigo-600 tracking-widest uppercase mb-3">Guanyin Fortune Stick</p>
+        <h2 className="text-4xl md:text-5xl font-serif-sc font-bold text-gray-900 mb-4">观音灵签</h2>
         <p className="text-gray-600 text-lg leading-relaxed max-w-2xl mx-auto">
-          从一百支灵签中随机抽取今日一签，查看吉凶等级、签诗、典故与分项提醒。
+          从一百支观音灵签中抽取今日一签，查看上中下签、签诗、宫位与分项提醒。
         </p>
       </div>
 
@@ -183,10 +183,10 @@ const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mo
                     </div>
                     <div className="flex flex-wrap gap-2 mt-4">
                       <span className="px-3 py-1 rounded-full bg-amber-50/10 border border-amber-50/20 text-xs font-bold text-amber-100">
-                        原签等级：{result.stick.level}
+                        签等：{result.stick.level}
                       </span>
                       <span className="px-3 py-1 rounded-full bg-amber-50/10 border border-amber-50/20 text-xs font-bold text-amber-100">
-                        古人典故：{result.stick.story}
+                        签名宫位：{result.stick.story}
                       </span>
                     </div>
                   </div>
@@ -246,7 +246,13 @@ const DailyDivinationMode: React.FC<DailyDivinationModeProps> = ({ apiConfig, mo
                 <Compass className="w-5 h-5" />
                 <h4 className="font-serif-sc font-bold text-xl">总解</h4>
               </div>
-              <p className="text-gray-700 leading-8 whitespace-pre-wrap">{result.stick.meaning}</p>
+              <p className="text-gray-700 leading-8 whitespace-pre-wrap">{getDisplayMeaning(result.stick.meaning)}</p>
+              {result.stick.storyDetail && (
+                <div className="mt-5 border-t border-gray-100 pt-5">
+                  <h5 className="font-serif-sc font-bold text-lg text-gray-900 mb-2">典故</h5>
+                  <p className="text-gray-700 leading-8 whitespace-pre-wrap">{result.stick.storyDetail}</p>
+                </div>
+              )}
             </section>
 
             {shouldShowAiSections && (

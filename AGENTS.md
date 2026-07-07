@@ -16,6 +16,19 @@ Single-page React + Vite app (no monorepo). Chinese UI with three independent mo
 
 There are **no** lint, test, format, or typecheck scripts. `vite build` is the only verification step.
 
+## Deployment
+
+Production deploy is handled by `deploy.sh` to the VPS behind `us.yanxinxue.com`.
+
+- Public path: `https://us.yanxinxue.com/lifekline/`
+- Static files are built locally with `npm run build`, then uploaded to `/var/www/lifekline`.
+- Vite keeps `base: './'` so the static app can run correctly under the `/lifekline/` subpath.
+- The deploy script manages only the Lifekline Caddy snippet at `/etc/caddy/conf.d/lifekline.caddy`.
+- The shared top-level `/etc/caddy/Caddyfile` must import `/etc/caddy/conf.d/*.caddy`.
+- Do not replace the whole Caddyfile with a single-project config. Other projects, including `/insurance-reminder/`, depend on their own snippets.
+- If editing deployment, preserve existing snippets such as `/etc/caddy/conf.d/insurance-reminder.caddy`.
+- Validate shell syntax with `bash -n deploy.sh` after changing the deploy script.
+
 ## Architecture
 
 | Path | Role |
@@ -53,7 +66,7 @@ There are **no** lint, test, format, or typecheck scripts. `vite build` is the o
 - **tsconfig strict mode**: `noUnusedLocals` and `noUnusedParameters` are enabled — unused imports/params will fail `vite build`.
 - **JSON extraction**: `geminiService.ts`, `fortuneService.ts`, and `ImportDataMode.tsx` parse AI responses by stripping markdown code blocks and finding the outermost `{...}`.
 - **`base: './'`** in vite config — output uses relative paths for deployment flexibility.
-- **Deploy target**: Vercel (`vercel.json` configured, `npm install` + `npm run build`).
+- **Deploy target**: VPS at `https://us.yanxinxue.com/lifekline/` via `deploy.sh`. `vercel.json` may exist from an earlier hosting setup, but the current production path is the VPS/Caddy deployment.
 - **`/index.css` missing**: `index.html:80` references `<link rel="stylesheet" href="/index.css">` but no such file exists. Build emits a harmless warning. All styling is via Tailwind CDN + inline `<style>`.
 
 ## Type System
