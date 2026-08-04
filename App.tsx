@@ -5,15 +5,19 @@ import AnalysisResult from './components/AnalysisResult';
 import ImportDataMode from './components/ImportDataMode';
 import DailyDivinationMode from './components/DailyDivinationMode';
 import AlmanacMode from './components/AlmanacMode';
-import { DivinationApiConfig, LifeDestinyResult } from './types';
+import ShortTermFortuneMode from './components/ShortTermFortuneMode';
+import { BaziProfile, DivinationApiConfig, LifeDestinyResult } from './types';
 import { hasUsableDivinationApiConfig, loadDivinationApiConfig, saveDivinationApiConfig } from './services/fortuneService';
+import { clearBaziProfile, loadBaziProfile, saveBaziProfile } from './services/baziProfileStorage';
 import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, LineChart, ScrollText, CalendarDays } from 'lucide-react';
 
 type PageMode = 'lifeKline' | 'divination' | 'almanac';
 type DivinationMode = 'local' | 'online';
+type LifeMode = 'lifetime' | 'week' | 'month';
 
 const App: React.FC = () => {
   const [pageMode, setPageMode] = useState<PageMode>('almanac');
+  const [lifeMode, setLifeMode] = useState<LifeMode>('week');
   const [divinationMode, setDivinationMode] = useState<DivinationMode>(() => (
     hasUsableDivinationApiConfig(loadDivinationApiConfig()) ? 'online' : 'local'
   ));
@@ -24,12 +28,26 @@ const App: React.FC = () => {
   const [result, setResult] = useState<LifeDestinyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
+  const [baziProfile, setBaziProfile] = useState<BaziProfile | null>(loadBaziProfile);
+  const [profileStorageMessage, setProfileStorageMessage] = useState<string | null>(null);
 
   // 处理导入数据
-  const handleDataImport = (data: LifeDestinyResult) => {
+  const handleDataImport = (data: LifeDestinyResult, name = '') => {
     setResult(data);
-    setUserName('');
+    setUserName(name);
     setError(null);
+  };
+
+  const handleSaveBaziProfile = (profile: BaziProfile) => {
+    setBaziProfile(profile);
+    const storageResult = saveBaziProfile(profile);
+    setProfileStorageMessage(storageResult.ok ? '生辰资料已保存到当前浏览器。' : storageResult.message || null);
+  };
+
+  const handleClearBaziProfile = () => {
+    const storageResult = clearBaziProfile();
+    setBaziProfile(null);
+    setProfileStorageMessage(storageResult.ok ? '已清除当前浏览器中的生辰资料。' : storageResult.message || null);
   };
 
   // 导出为 JSON 文件
@@ -104,7 +122,10 @@ const App: React.FC = () => {
             healthScore: data.healthScore || 5,
             family: data.family || "无",
             familyScore: data.familyScore || 5,
-
+            crypto: data.crypto || "无",
+            cryptoScore: data.cryptoScore || 5,
+            cryptoYear: data.cryptoYear || "无",
+            cryptoStyle: data.cryptoStyle || "无",
           },
         };
 
@@ -376,7 +397,7 @@ const App: React.FC = () => {
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100">
               <h3 className="text-xl font-serif-sc font-bold text-gray-900">配置在线 AI 模型</h3>
-              <p className="text-sm text-gray-500 mt-1">用于观音灵签、黄历和人生K线，配置只保存在当前浏览器缓存中，不上传后端。</p>
+              <p className="text-sm text-gray-500 mt-1">用于观音灵签、黄历、人生K线和周月运势，配置只保存在当前浏览器缓存中，不上传后端。</p>
             </div>
 
             <div className="p-6 space-y-4">
@@ -485,10 +506,31 @@ const App: React.FC = () => {
                 }`}
             >
               <LineChart className="w-4 h-4" />
-              人生K线
+              运势分析
             </button>
           </div>
         </div>
+
+        {pageMode === 'lifeKline' && (
+          <div className="no-print flex justify-center -mt-6">
+            <div className="inline-flex w-full max-w-xl rounded-xl border border-indigo-100 bg-indigo-50 p-1 overflow-x-auto">
+              {([
+                ['week', '本周运势'],
+                ['month', '本月运势'],
+                ['lifetime', '人生趋势'],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setLifeMode(mode)}
+                  className={`flex-1 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${lifeMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* If no result, show intro and form */}
         {pageMode === 'divination' && (
@@ -506,7 +548,7 @@ const App: React.FC = () => {
           />
         )}
 
-        {pageMode === 'lifeKline' && !result && (
+        {pageMode === 'lifeKline' && lifeMode === 'lifetime' && !result && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-fade-in">
             <div className="text-center max-w-2xl flex flex-col items-center">
               <h2 className="text-4xl md:text-5xl font-serif-sc font-bold text-gray-900 mb-6">
@@ -552,6 +594,10 @@ const App: React.FC = () => {
             <ImportDataMode
               onDataImport={handleDataImport}
               apiConfig={divinationApiConfig}
+              profile={baziProfile}
+              storageMessage={profileStorageMessage}
+              onSaveProfile={handleSaveBaziProfile}
+              onClearProfile={handleClearBaziProfile}
             />
 
             {error && (
@@ -564,7 +610,37 @@ const App: React.FC = () => {
         )}
 
         {/* Results View */}
-        {pageMode === 'lifeKline' && result && (
+        {pageMode === 'lifeKline' && lifeMode === 'week' && (
+          <div className="flex min-h-[60vh] justify-center animate-fade-in">
+            <ShortTermFortuneMode
+              key="week-fortune"
+              type="week"
+              profile={baziProfile}
+              apiConfig={divinationApiConfig}
+              storageMessage={profileStorageMessage}
+              onSaveProfile={handleSaveBaziProfile}
+              onClearProfile={handleClearBaziProfile}
+              onRequestConfig={openDivinationConfig}
+            />
+          </div>
+        )}
+
+        {pageMode === 'lifeKline' && lifeMode === 'month' && (
+          <div className="flex min-h-[60vh] justify-center animate-fade-in">
+            <ShortTermFortuneMode
+              key="month-fortune"
+              type="month"
+              profile={baziProfile}
+              apiConfig={divinationApiConfig}
+              storageMessage={profileStorageMessage}
+              onSaveProfile={handleSaveBaziProfile}
+              onClearProfile={handleClearBaziProfile}
+              onRequestConfig={openDivinationConfig}
+            />
+          </div>
+        )}
+
+        {pageMode === 'lifeKline' && lifeMode === 'lifetime' && result && (
           <div className="animate-fade-in space-y-12">
 
             <div className="flex flex-col md:flex-row justify-between items-end md:items-center border-b border-gray-200 pb-4 gap-4">

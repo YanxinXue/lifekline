@@ -10,7 +10,6 @@ interface CitySelectorProps {
 const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange }) => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [selectedName, setSelectedName] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const results = query.trim() ? searchCities(query) : CITIES.slice(0, 15);
@@ -26,13 +25,10 @@ const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange }) => {
   }, []);
 
   const handleSelect = (city: City) => {
-    setSelectedName(city.name);
     setQuery('');
     setOpen(false);
     onChange(city.longitude, city.name);
   };
-
-  const displayValue = selectedName || value;
 
   return (
     <div ref={containerRef} className="relative">
@@ -42,7 +38,7 @@ const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange }) => {
       </div>
       <input
         type="text"
-        value={open ? query : displayValue}
+        value={open ? query : value}
         onChange={e => {
           setQuery(e.target.value);
           setOpen(true);

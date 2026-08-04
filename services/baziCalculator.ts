@@ -14,6 +14,12 @@ export interface BaziResult {
   hourPillar: string;
   startAge: number;       // 起运年龄 (虚岁)
   firstDaYun: string;     // 第一步大运
+  yunStartDateTime: string;
+  daYunSequence: Array<{
+    ganZhi: string;
+    startYear: number;
+    endYear: number;
+  }>;
 }
 
 interface DateTimeParts {
@@ -116,7 +122,14 @@ export function calculateBazi(input: BaziInput): BaziResult {
   const eightChar = solar.getLunar().getEightChar();
   const gender = input.gender === 'Male' ? 1 : 0;
   const yun = eightChar.getYun(gender);
-  const firstDaYun = yun.getDaYun(2).find(daYun => daYun.getGanZhi());
+  const daYunSequence = yun.getDaYun(11)
+    .filter(daYun => daYun.getGanZhi())
+    .map(daYun => ({
+      ganZhi: daYun.getGanZhi(),
+      startYear: daYun.getStartYear(),
+      endYear: daYun.getEndYear(),
+    }));
+  const firstDaYun = daYunSequence[0];
 
   if (!firstDaYun) {
     throw new Error('大运计算失败');
@@ -127,7 +140,9 @@ export function calculateBazi(input: BaziInput): BaziResult {
     monthPillar: eightChar.getMonth(),
     dayPillar: eightChar.getDay(),
     hourPillar: eightChar.getTime(),
-    startAge: firstDaYun.getStartAge(),
-    firstDaYun: firstDaYun.getGanZhi(),
+    startAge: yun.getDaYun(2).find(daYun => daYun.getGanZhi())?.getStartAge() || 1,
+    firstDaYun: firstDaYun.ganZhi,
+    yunStartDateTime: yun.getStartSolar().toYmdHms(),
+    daYunSequence,
   };
 }

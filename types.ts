@@ -21,6 +21,164 @@ export interface UserInput {
   apiKey: string;
 }
 
+export type BaziProfile =
+  | {
+      version: 1;
+      source: 'auto';
+      name: string;
+      gender: Gender;
+      birthDate: string;
+      birthTime: string;
+      cityName: string;
+      longitude: number;
+      updatedAt: string;
+    }
+  | {
+      version: 1;
+      source: 'manual';
+      name: string;
+      gender: Gender;
+      birthYear: string;
+      yearPillar: string;
+      monthPillar: string;
+      dayPillar: string;
+      hourPillar: string;
+      startAge: string;
+      firstDaYun: string;
+      updatedAt: string;
+    };
+
+export interface ResolvedBaziProfile {
+  profile: BaziProfile;
+  name: string;
+  gender: Gender;
+  birthYear: string;
+  yearPillar: string;
+  monthPillar: string;
+  dayPillar: string;
+  hourPillar: string;
+  startAge: string;
+  firstDaYun: string;
+}
+
+export type FortunePeriodType = 'week' | 'month';
+
+export type FiveElement = '木' | '火' | '土' | '金' | '水';
+export type YinYang = '阳' | '阴';
+export type TenGod = '比肩' | '劫财' | '食神' | '伤官' | '偏财' | '正财' | '七杀' | '正官' | '偏印' | '正印';
+
+export interface BaziGanZhiAnalysis {
+  ganZhi: string;
+  stem: {
+    value: string;
+    element: FiveElement;
+    yinYang: YinYang;
+    tenGod: TenGod;
+  };
+  branch: {
+    value: string;
+    element: FiveElement;
+    hiddenStems: Array<{
+      value: string;
+      element: FiveElement;
+      yinYang: YinYang;
+      tenGod: TenGod;
+    }>;
+  };
+}
+
+export interface BaziRelation {
+  kind: '天干五合' | '天干相冲' | '地支六合' | '地支相冲' | '地支相刑' | '地支相害' | '地支相破' | '地支三合' | '地支三会';
+  participants: string[];
+  detail: string;
+}
+
+export interface PeriodGanZhiAnalysis {
+  label: string;
+  ganZhi: string;
+  analysis: BaziGanZhiAnalysis | null;
+  relations: BaziRelation[];
+}
+
+export interface BaziInteractionContext {
+  ruleVersion: 'ziping-common-v1';
+  dayMaster: {
+    value: string;
+    element: FiveElement;
+    yinYang: YinYang;
+  };
+  monthCommand: {
+    branch: string;
+    mainElement: FiveElement;
+    relationToDayMaster: string;
+  };
+  elementCounts: Record<FiveElement, number>;
+  elementCountBasis: string;
+  natalPillars: Array<{
+    label: string;
+    analysis: BaziGanZhiAnalysis;
+  }>;
+  natalRelations: BaziRelation[];
+  daYun: PeriodGanZhiAnalysis;
+  liuNian: PeriodGanZhiAnalysis;
+  liuYueSegments: Array<PeriodGanZhiAnalysis & {
+    startDateTime: string;
+    endDateTime: string;
+  }>;
+  days: Array<PeriodGanZhiAnalysis & {
+    date: string;
+    weekday: string;
+  }>;
+  interpretationBoundary: string;
+}
+
+export interface FortunePeriodContext {
+  type: FortunePeriodType;
+  startDateTime: string;
+  endDateTime: string;
+  daYun: string;
+  daYunBasis: 'exact' | 'manual-age-range';
+  liuNian: string;
+  liuYueSegments: Array<{
+    ganZhi: string;
+    startDateTime: string;
+    endDateTime: string;
+  }>;
+  days: Array<{
+    date: string;
+    weekday: string;
+    ganZhi: string;
+  }>;
+  baziInteractions: BaziInteractionContext;
+}
+
+export interface FortuneDimension {
+  score: number;
+  summary: string;
+  advice: string;
+}
+
+export interface ShortTermFortuneResult {
+  period: FortunePeriodContext;
+  overallScore: number;
+  trend: 'up' | 'stable' | 'volatile' | 'cautious';
+  summary: string;
+  career: FortuneDimension;
+  wealth: FortuneDimension;
+  relationship: FortuneDimension;
+  health: FortuneDimension;
+  timeline: Array<{
+    dateRange: string;
+    score: number;
+    title: string;
+    analysis: string;
+  }>;
+  opportunities: string[];
+  risks: string[];
+  actions: string[];
+  disclaimer: string;
+}
+
 export interface KLinePoint {
   age: number;
   year: number;
