@@ -9,7 +9,7 @@ import ShortTermFortuneMode from './components/ShortTermFortuneMode';
 import { BaziProfile, DivinationApiConfig, LifeDestinyResult } from './types';
 import { hasUsableDivinationApiConfig, loadDivinationApiConfig, saveDivinationApiConfig } from './services/fortuneService';
 import { clearBaziProfile, loadBaziProfile, saveBaziProfile } from './services/baziProfileStorage';
-import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, FileUp, LineChart, ScrollText, CalendarDays } from 'lucide-react';
+import { Sparkles, AlertCircle, Download, Printer, Trophy, FileDown, LineChart, ScrollText, CalendarDays } from 'lucide-react';
 
 type PageMode = 'lifeKline' | 'divination' | 'almanac';
 type DivinationMode = 'local' | 'online';
@@ -26,7 +26,6 @@ const App: React.FC = () => {
   const [isDivinationConfigOpen, setIsDivinationConfigOpen] = useState(false);
   const [divinationConfigError, setDivinationConfigError] = useState<string | null>(null);
   const [result, setResult] = useState<LifeDestinyResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [baziProfile, setBaziProfile] = useState<BaziProfile | null>(loadBaziProfile);
   const [profileStorageMessage, setProfileStorageMessage] = useState<string | null>(null);
@@ -35,7 +34,6 @@ const App: React.FC = () => {
   const handleDataImport = (data: LifeDestinyResult, name = '') => {
     setResult(data);
     setUserName(name);
-    setError(null);
   };
 
   const handleSaveBaziProfile = (profile: BaziProfile) => {
@@ -85,59 +83,6 @@ const App: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  // 从 JSON 文件导入
-  const handleImportJsonFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string;
-        const data = JSON.parse(content);
-
-        if (!data.chartPoints || !Array.isArray(data.chartPoints)) {
-          throw new Error('无效的数据格式：缺少 chartPoints');
-        }
-
-        const importedResult: LifeDestinyResult = {
-          chartData: data.chartPoints,
-          analysis: {
-            bazi: data.bazi || [],
-            summary: data.summary || "无摘要",
-            summaryScore: data.summaryScore || 5,
-            personality: data.personality || "无性格分析",
-            personalityScore: data.personalityScore || 5,
-            industry: data.industry || "无",
-            industryScore: data.industryScore || 5,
-            fengShui: data.fengShui || "建议多亲近自然，保持心境平和。",
-            fengShuiScore: data.fengShuiScore || 5,
-            wealth: data.wealth || "无",
-            wealthScore: data.wealthScore || 5,
-            marriage: data.marriage || "无",
-            marriageScore: data.marriageScore || 5,
-            health: data.health || "无",
-            healthScore: data.healthScore || 5,
-            family: data.family || "无",
-            familyScore: data.familyScore || 5,
-            crypto: data.crypto || "无",
-            cryptoScore: data.cryptoScore || 5,
-            cryptoYear: data.cryptoYear || "无",
-            cryptoStyle: data.cryptoStyle || "无",
-          },
-        };
-
-        setResult(importedResult);
-        setError(null);
-      } catch (err: any) {
-        setError(`文件解析失败：${err.message}`);
-      }
-    };
-    reader.readAsText(file);
-    // 重置 input 以便可以再次选择同一文件
-    event.target.value = '';
   };
 
   const handlePrint = () => {
@@ -549,48 +494,7 @@ const App: React.FC = () => {
         )}
 
         {pageMode === 'lifeKline' && lifeMode === 'lifetime' && !result && (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-fade-in">
-            <div className="text-center max-w-2xl flex flex-col items-center">
-              <h2 className="text-4xl md:text-5xl font-serif-sc font-bold text-gray-900 mb-6">
-                洞悉命运起伏 <br />
-                <span className="text-indigo-600">预见人生轨迹</span>
-              </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-6 max-w-3xl">
-                结合<strong>传统八字命理</strong>与<strong>金融可视化技术</strong>，将您的一生运势绘制成类似股票行情的K线图。
-              </p>
-
-              {/* 使用说明 */}
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100 mb-6 text-left w-full max-w-lg">
-                <h3 className="font-bold text-indigo-800 mb-2">📝 使用方法</h3>
-                {hasUsableDivinationApiConfig(divinationApiConfig) ? (
-                  <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                    <li>填写八字信息</li>
-                    <li>系统会直接调用浏览器缓存中的在线 AI 配置</li>
-                    <li>模型返回 JSON 后自动生成 K 线报告</li>
-                  </ol>
-                ) : (
-                  <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                    <li>填写八字信息，生成专属提示词</li>
-                    <li>复制提示词到任意 AI（ChatGPT、Claude、Gemini 等）</li>
-                    <li>将 AI 返回的 JSON 数据粘贴回来</li>
-                  </ol>
-                )}
-              </div>
-
-              {/* 快速导入 JSON 文件 */}
-              <label className="flex items-center gap-3 px-6 py-3 bg-white border-2 border-dashed border-emerald-300 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all group mb-4">
-                <FileUp className="w-6 h-6 text-emerald-500 group-hover:text-emerald-600" />
-                <span className="text-base font-medium text-gray-600 group-hover:text-emerald-700">已有 JSON 文件？点击直接导入</span>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportJsonFile}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* 导入模式组件 */}
+          <div className="flex flex-col items-center animate-fade-in">
             <ImportDataMode
               onDataImport={handleDataImport}
               apiConfig={divinationApiConfig}
@@ -599,13 +503,6 @@ const App: React.FC = () => {
               onSaveProfile={handleSaveBaziProfile}
               onClearProfile={handleClearBaziProfile}
             />
-
-            {error && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-100 max-w-md w-full animate-bounce-short">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm font-bold">{error}</p>
-              </div>
-            )}
           </div>
         )}
 

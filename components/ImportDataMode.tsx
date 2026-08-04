@@ -166,17 +166,6 @@ const ImportDataMode: React.FC<ImportDataModeProps> = ({
 
   return (
     <div className="w-full max-w-2xl">
-      <div className="mb-6 flex items-center justify-center gap-2">
-        {[1, 2, 3].map(current => (
-          <React.Fragment key={current}>
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${step === current ? 'scale-110 bg-indigo-600 text-white' : step > current ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-              {step > current ? <CheckCircle className="w-5 h-5" /> : current}
-            </div>
-            {current < 3 ? <div className={`h-1 w-16 rounded ${step > current ? 'bg-green-500' : 'bg-gray-200'}`} /> : null}
-          </React.Fragment>
-        ))}
-      </div>
-
       {step === 1 ? (
         <div className="space-y-4">
           <BaziProfileForm

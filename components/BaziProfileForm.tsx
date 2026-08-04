@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Calendar, CheckCircle, Database, Loader2, MapPin, Sparkles, Trash2 } from 'lucide-react';
 import { BaziProfile, Gender, ResolvedBaziProfile } from '../types';
 import { calculateBazi } from '../services/baziCalculator';
@@ -37,6 +37,28 @@ const EMPTY_MANUAL_FIELDS: ManualFields = {
 
 const isPillar = (value: string) => JIAZI.includes(value.trim());
 
+interface BirthDateParts {
+  year: string;
+  month: string;
+  day: string;
+}
+
+const splitBirthDate = (value: string): BirthDateParts => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? { year: match[1], month: match[2], day: match[3] } : { year: '', month: '', day: '' };
+};
+
+const toBirthDate = ({ year, month, day }: BirthDateParts) => {
+  if (year.length !== 4 || month.length !== 2 || day.length !== 2) return '';
+  const yearNumber = Number(year);
+  const monthNumber = Number(month);
+  const dayNumber = Number(day);
+  const leapYear = yearNumber % 4 === 0 && (yearNumber % 100 !== 0 || yearNumber % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][monthNumber - 1];
+  if (yearNumber < 1 || !daysInMonth || dayNumber < 1 || dayNumber > daysInMonth) return '';
+  return `${year}-${month}-${day}`;
+};
+
 const BaziProfileForm: React.FC<BaziProfileFormProps> = ({
   initialProfile,
   onSubmit,
@@ -50,6 +72,9 @@ const BaziProfileForm: React.FC<BaziProfileFormProps> = ({
   const [name, setName] = useState(initialProfile?.name || '');
   const [gender, setGender] = useState(initialProfile?.gender || Gender.MALE);
   const [birthDate, setBirthDate] = useState(initialProfile?.source === 'auto' ? initialProfile.birthDate : '');
+  const [birthDateParts, setBirthDateParts] = useState<BirthDateParts>(() => (
+    splitBirthDate(initialProfile?.source === 'auto' ? initialProfile.birthDate : '')
+  ));
   const [birthTime, setBirthTime] = useState(initialProfile?.source === 'auto' ? initialProfile.birthTime : '');
   const [cityName, setCityName] = useState(initialProfile?.source === 'auto' ? initialProfile.cityName : '北京');
   const [longitude, setLongitude] = useState(initialProfile?.source === 'auto' ? initialProfile.longitude : 116.4);
@@ -63,6 +88,27 @@ const BaziProfileForm: React.FC<BaziProfileFormProps> = ({
     firstDaYun: initialProfile.firstDaYun,
   } : EMPTY_MANUAL_FIELDS);
   const [error, setError] = useState<string | null>(null);
+  const yearInputRef = useRef<HTMLInputElement>(null);
+  const monthInputRef = useRef<HTMLInputElement>(null);
+  const dayInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBirthDatePartChange = (field: keyof BirthDateParts, rawValue: string) => {
+    const maximumLength = field === 'year' ? 4 : 2;
+    const value = rawValue.replace(/\D/g, '').slice(0, maximumLength);
+    const next = { ...birthDateParts, [field]: value };
+    setBirthDateParts(next);
+    setBirthDate(toBirthDate(next));
+    setError(null);
+    if (value.length !== maximumLength) return;
+    if (field === 'year') monthInputRef.current?.focus();
+    if (field === 'month') dayInputRef.current?.focus();
+  };
+
+  const handleBirthDatePartKeyDown = (field: keyof BirthDateParts, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Backspace' || birthDateParts[field]) return;
+    if (field === 'month') yearInputRef.current?.focus();
+    if (field === 'day') monthInputRef.current?.focus();
+  };
 
   const automaticCalculation = useMemo(() => {
     if (!birthDate || !birthTime) return { result: null, error: null };
@@ -199,7 +245,13 @@ const BaziProfileForm: React.FC<BaziProfileFormProps> = ({
         <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 space-y-4">
           <div className="flex items-center gap-2 text-sm font-bold text-emerald-800"><Calendar className="w-4 h-4" />出生时间（北京时间）</div>
           <div className="grid grid-cols-2 gap-4">
-            <input type="date" value={birthDate} onChange={event => setBirthDate(event.target.value)} className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white" aria-label="出生日期" />
+            <div className="flex w-full items-center rounded-lg border border-emerald-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-emerald-500" aria-label="出生日期">
+              <input ref={yearInputRef} type="text" inputMode="numeric" autoComplete="bday-year" value={birthDateParts.year} onChange={event => handleBirthDatePartChange('year', event.target.value)} onKeyDown={event => handleBirthDatePartKeyDown('year', event)} onFocus={event => event.currentTarget.select()} className="min-w-0 flex-[2] bg-transparent text-center outline-none" placeholder="YYYY" maxLength={4} aria-label="出生年份" />
+              <span className="text-gray-400" aria-hidden="true">/</span>
+              <input ref={monthInputRef} type="text" inputMode="numeric" autoComplete="bday-month" value={birthDateParts.month} onChange={event => handleBirthDatePartChange('month', event.target.value)} onKeyDown={event => handleBirthDatePartKeyDown('month', event)} onFocus={event => event.currentTarget.select()} className="min-w-0 flex-1 bg-transparent text-center outline-none" placeholder="MM" maxLength={2} aria-label="出生月份" />
+              <span className="text-gray-400" aria-hidden="true">/</span>
+              <input ref={dayInputRef} type="text" inputMode="numeric" autoComplete="bday-day" value={birthDateParts.day} onChange={event => handleBirthDatePartChange('day', event.target.value)} onKeyDown={event => handleBirthDatePartKeyDown('day', event)} onFocus={event => event.currentTarget.select()} className="min-w-0 flex-1 bg-transparent text-center outline-none" placeholder="DD" maxLength={2} aria-label="出生日期" />
+            </div>
             <input type="time" value={birthTime} onChange={event => setBirthTime(event.target.value)} className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white" aria-label="出生时间" />
           </div>
           <div className="flex items-center gap-2 text-xs font-bold text-gray-600"><MapPin className="w-3 h-3" />出生地用于真太阳时校正</div>

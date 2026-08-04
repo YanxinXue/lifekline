@@ -7,6 +7,7 @@ import {
   PeriodGanZhiAnalysis,
   ResolvedBaziProfile,
   TenGod,
+  TenGodCategory,
   YinYang,
 } from '../types';
 
@@ -29,6 +30,44 @@ const HIDDEN_STEMS: Record<string, string[]> = {
 
 const GENERATES: Record<FiveElement, FiveElement> = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
 const CONTROLS: Record<FiveElement, FiveElement> = { 木: '土', 火: '金', 土: '水', 金: '木', 水: '火' };
+const ELEMENTS: FiveElement[] = ['木', '火', '土', '金', '水'];
+const TEN_GOD_CATEGORY: Record<TenGod, TenGodCategory> = {
+  比肩: '比劫', 劫财: '比劫', 食神: '食伤', 伤官: '食伤',
+  偏财: '财', 正财: '财', 七杀: '官杀', 正官: '官杀', 偏印: '印', 正印: '印',
+};
+const HIDDEN_WEIGHTS: Record<number, number[]> = { 1: [1], 2: [0.7, 0.3], 3: [0.7, 0.2, 0.1] };
+const PEACH_MAP: Record<string, string> = {
+  申: '酉', 子: '酉', 辰: '酉', 寅: '卯', 午: '卯', 戌: '卯',
+  亥: '子', 卯: '子', 未: '子', 巳: '午', 酉: '午', 丑: '午',
+};
+const TIANYI_MAP: Record<string, string[]> = {
+  甲: ['丑', '未'], 戊: ['丑', '未'], 庚: ['丑', '未'], 乙: ['子', '申'], 己: ['子', '申'],
+  丙: ['亥', '酉'], 丁: ['亥', '酉'], 辛: ['寅', '午'], 壬: ['卯', '巳'], 癸: ['卯', '巳'],
+};
+const PERSONALITY_TAGS: Record<TenGodCategory, string[]> = {
+  比劫: ['独立', '竞争', '主导'], 食伤: ['表达', '创意', '输出'], 财: ['务实', '结果导向', '资源意识'],
+  官杀: ['责任', '规则', '执行'], 印: ['学习', '内省', '稳定'],
+};
+
+const roundScore = (value: number) => Math.round(value * 1000) / 1000;
+const findGeneratingElement = (target: FiveElement) => ELEMENTS.find(element => GENERATES[element] === target) as FiveElement;
+const findControllingElement = (target: FiveElement) => ELEMENTS.find(element => CONTROLS[element] === target) as FiveElement;
+
+const getElementStatus = (score: number): BaziInteractionContext['fiveElementStatus'][FiveElement] => {
+  if (score < 1) return '偏缺';
+  if (score < 1.5) return '偏弱';
+  if (score < 2.5) return '平衡';
+  if (score < 3) return '偏旺';
+  return '过旺';
+};
+
+const getStrengthLevel = (ratio: number): BaziInteractionContext['strength']['level'] => {
+  if (ratio >= 0.68) return '强';
+  if (ratio >= 0.58) return '偏强';
+  if (ratio >= 0.42) return '中和';
+  if (ratio >= 0.32) return '偏弱';
+  return '弱';
+};
 
 const pairKey = (left: string, right: string) => [left, right].sort().join('');
 const pairSet = (pairs: string[][]) => new Set(pairs.map(([left, right]) => pairKey(left, right)));
@@ -151,9 +190,9 @@ const analyzePeriodLayer = (
   previousSources: ActiveGanZhi[],
 ): PeriodGanZhiAnalysis => {
   const current = { label, ganZhi };
-  if (!isGanZhi(ganZhi)) return { ...current, analysis: null, relations: [] };
+  if (!isGanZhi(ganZhi)) return { ...current, analysis: null, relations: [], evidence: null };
   const relations = calculateRelations([...previousSources, current]).filter(relation => relation.participants.includes(label));
-  return { ...current, analysis: analyzeGanZhi(ganZhi, dayMaster), relations };
+  return { ...current, analysis: analyzeGanZhi(ganZhi, dayMaster), relations, evidence: null };
 };
 
 const describeMonthCommand = (monthElement: FiveElement, dayElement: FiveElement) => {
@@ -162,6 +201,227 @@ const describeMonthCommand = (monthElement: FiveElement, dayElement: FiveElement
   if (GENERATES[dayElement] === monthElement) return '日主生月令主气';
   if (CONTROLS[monthElement] === dayElement) return '月令主气克制日主';
   return '日主克制月令主气';
+};
+
+const calculateNatalBaseline = (
+  natalPillars: BaziInteractionContext['natalPillars'],
+  dayElement: FiveElement,
+) => {
+  const weightedFiveElements: Record<FiveElement, number> = { 木: 0, 火: 0, 土: 0, 金: 0, 水: 0 };
+  const tenGodCategoryScores: Record<TenGodCategory, number> = { 比劫: 0, 食伤: 0, 财: 0, 官杀: 0, 印: 0 };
+
+  natalPillars.forEach((pillar, pillarIndex) => {
+    weightedFiveElements[pillar.analysis.stem.element] += 1;
+    if (pillarIndex !== 2) tenGodCategoryScores[TEN_GOD_CATEGORY[pillar.analysis.stem.tenGod]] += 1;
+    const weights = HIDDEN_WEIGHTS[pillar.analysis.branch.hiddenStems.length];
+    pillar.analysis.branch.hiddenStems.forEach((hiddenStem, hiddenIndex) => {
+      const weight = weights[hiddenIndex];
+      weightedFiveElements[hiddenStem.element] += weight;
+      tenGodCategoryScores[TEN_GOD_CATEGORY[hiddenStem.tenGod]] += weight;
+    });
+  });
+
+  ELEMENTS.forEach(element => { weightedFiveElements[element] = roundScore(weightedFiveElements[element]); });
+  (Object.keys(tenGodCategoryScores) as TenGodCategory[]).forEach(category => {
+    tenGodCategoryScores[category] = roundScore(tenGodCategoryScores[category]);
+  });
+
+  const resourceElement = findGeneratingElement(dayElement);
+  const outputElement = GENERATES[dayElement];
+  const wealthElement = CONTROLS[dayElement];
+  const authorityElement = findControllingElement(dayElement);
+  const sameScore = weightedFiveElements[dayElement];
+  const resourceScore = weightedFiveElements[resourceElement];
+  const outputScore = weightedFiveElements[outputElement];
+  const wealthScore = weightedFiveElements[wealthElement];
+  const authorityScore = weightedFiveElements[authorityElement];
+  const monthElement = natalPillars[1].analysis.branch.element;
+  const monthBonus = monthElement === dayElement
+    ? 1.5
+    : monthElement === resourceElement
+      ? 1.2
+      : monthElement === outputElement
+        ? -0.8
+        : monthElement === wealthElement
+          ? -1
+          : -1.2;
+  const supportTotal = sameScore + resourceScore + Math.max(monthBonus, 0);
+  const drainTotal = outputScore + wealthScore + authorityScore + Math.max(-monthBonus, 0);
+  const ratio = supportTotal / (supportTotal + drainTotal);
+  const level = getStrengthLevel(ratio);
+  const baseTotal = sameScore + resourceScore + outputScore + wealthScore + authorityScore;
+  const baseSupportRatio = (sameScore + resourceScore) / baseTotal;
+  const supportElements = new Set<FiveElement>([dayElement, resourceElement]);
+  const visibleSupportCount = natalPillars.filter((pillar, index) => index !== 2 && supportElements.has(pillar.analysis.stem.element)).length;
+  const rootSupportCount = natalPillars.filter(pillar => pillar.analysis.branch.hiddenStems.some(stem => supportElements.has(stem.element))).length;
+
+  let type: BaziInteractionContext['structure']['type'] = '正格';
+  let subtype: BaziInteractionContext['structure']['subtype'] = '扶抑正格';
+  if (level === '强' && baseSupportRatio >= 0.7 && monthBonus > 0 && outputScore + wealthScore + authorityScore <= 2) {
+    type = '从格';
+    subtype = '从旺';
+  } else if (level === '弱' && baseSupportRatio <= 0.25 && monthBonus < 0 && visibleSupportCount === 0 && rootSupportCount === 0) {
+    type = '从格';
+    const dominant = ([['食伤', outputScore], ['财', wealthScore], ['官杀', authorityScore]] as const)
+      .reduce((best, current) => current[1] > best[1] ? current : best);
+    subtype = dominant[0] === '食伤' ? '从儿' : dominant[0] === '财' ? '从财' : '从官杀';
+  }
+
+  let categories: TenGodCategory[];
+  let unfavorableCategories: TenGodCategory[];
+  if (subtype === '从旺') {
+    categories = ['比劫', '印'];
+    unfavorableCategories = ['食伤', '财', '官杀'];
+  } else if (subtype === '从儿' || subtype === '从财' || subtype === '从官杀') {
+    categories = [subtype === '从儿' ? '食伤' : subtype === '从财' ? '财' : '官杀'];
+    unfavorableCategories = ['比劫', '印'];
+  } else if (level === '强' || level === '偏强') {
+    categories = ['食伤', '财', '官杀'];
+    unfavorableCategories = ['比劫', '印'];
+  } else if (level === '弱' || level === '偏弱') {
+    categories = ['比劫', '印'];
+    unfavorableCategories = ['食伤', '财', '官杀'];
+  } else {
+    categories = ['财', '官杀', '印'];
+    unfavorableCategories = [];
+  }
+
+  const categoryElement: Record<TenGodCategory, FiveElement> = {
+    比劫: dayElement, 食伤: outputElement, 财: wealthElement, 官杀: authorityElement, 印: resourceElement,
+  };
+  return {
+    weightedFiveElements,
+    fiveElementStatus: Object.fromEntries(ELEMENTS.map(element => [element, getElementStatus(weightedFiveElements[element])])) as BaziInteractionContext['fiveElementStatus'],
+    tenGodCategoryScores,
+    strength: {
+      sameScore, resourceScore, outputScore, wealthScore, authorityScore, monthBonus,
+      supportTotal: roundScore(supportTotal), drainTotal: roundScore(drainTotal), ratio: roundScore(ratio), level,
+    },
+    structure: {
+      type, subtype, baseSupportRatio: roundScore(baseSupportRatio), visibleSupportCount, rootSupportCount,
+    },
+    favorable: {
+      categories,
+      unfavorableCategories,
+      elements: categories.map(category => categoryElement[category]),
+      unfavorableElements: unfavorableCategories.map(category => categoryElement[category]),
+    },
+  };
+};
+
+const getFavorability = (
+  category: TenGodCategory,
+  favorable: BaziInteractionContext['favorable'],
+) => favorable.categories.includes(category)
+  ? '有利' as const
+  : favorable.unfavorableCategories.includes(category)
+    ? '不利' as const
+    : '中性' as const;
+
+const combineFavorability = (
+  stem: '有利' | '不利' | '中性',
+  branch: '有利' | '不利' | '中性',
+): NonNullable<PeriodGanZhiAnalysis['evidence']>['combinedFavorability'] => {
+  if (stem === branch) return stem;
+  if ((stem === '有利' && branch === '不利') || (stem === '不利' && branch === '有利')) return '混合';
+  return stem === '中性' ? branch : stem;
+};
+
+const attachPeriodEvidence = (
+  period: PeriodGanZhiAnalysis,
+  favorable: BaziInteractionContext['favorable'],
+): PeriodGanZhiAnalysis => {
+  if (!period.analysis) return period;
+  const stemCategory = TEN_GOD_CATEGORY[period.analysis.stem.tenGod];
+  const branchMainCategory = TEN_GOD_CATEGORY[period.analysis.branch.hiddenStems[0].tenGod];
+  const stemFavorability = getFavorability(stemCategory, favorable);
+  const branchMainFavorability = getFavorability(branchMainCategory, favorable);
+  const triggeredNatalPillars = Array.from(new Set(period.relations.flatMap(relation => relation.participants)
+    .filter(participant => ['年柱', '月柱', '日柱', '时柱'].includes(participant))));
+  return {
+    ...period,
+    evidence: {
+      stemCategory,
+      branchMainCategory,
+      stemFavorability,
+      branchMainFavorability,
+      combinedFavorability: combineFavorability(stemFavorability, branchMainFavorability),
+      triggeredNatalPillars,
+      spousePalaceTriggered: triggeredNatalPillars.includes('日柱'),
+      monthPillarTriggered: triggeredNatalPillars.includes('月柱'),
+      hourPillarTriggered: triggeredNatalPillars.includes('时柱'),
+    },
+  };
+};
+
+const calculateRuleInsights = (
+  profile: ResolvedBaziProfile,
+  natalPillars: BaziInteractionContext['natalPillars'],
+  baseline: ReturnType<typeof calculateNatalBaseline>,
+) => {
+  const ranking = (Object.entries(baseline.tenGodCategoryScores) as Array<[TenGodCategory, number]>)
+    .sort((left, right) => right[1] - left[1]);
+  const dominant = ranking[0][0];
+  const secondary = ranking[1][0];
+  const branches = natalPillars.map(pillar => pillar.analysis.branch.value);
+  const peachTargets = Array.from(new Set([PEACH_MAP[branches[0]], PEACH_MAP[branches[2]]]));
+  const tianYiTargets = TIANYI_MAP[profile.dayPillar[0]];
+  const hitPositions = (targets: string[]) => natalPillars
+    .filter(pillar => targets.includes(pillar.analysis.branch.value))
+    .map(pillar => pillar.label.replace('柱', '支'));
+  const peachHits = hitPositions(peachTargets);
+  const tianYiHits = hitPositions(tianYiTargets);
+  const scores = baseline.tenGodCategoryScores;
+
+  let careerAxis: BaziInteractionContext['ruleInsights']['careerAxis'] = '喜用导向型';
+  let careerTags = ['按喜用五行对应的行业、团队和职责优先'];
+  if (scores.官杀 + scores.印 >= 3) {
+    careerAxis = '管理制度型';
+    careerTags = ['管理', '制度', '行政', '法务', '标准化岗位'];
+  } else if (scores.食伤 + scores.财 >= 3) {
+    careerAxis = '市场经营型';
+    careerTags = ['市场', '销售', '产品', '内容', '经营', '创业型岗位'];
+  } else if (scores.印 + scores.比劫 >= 3) {
+    careerAxis = '研究专业型';
+    careerTags = ['研究', '教育', '技术', '咨询', '策划'];
+  }
+  const careerRiskFlags: string[] = [];
+  if (scores.官杀 >= 2.5 && ['弱', '偏弱'].includes(baseline.strength.level)) careerRiskFlags.push('高压规则环境容易放大消耗');
+  if (scores.食伤 >= 2.5 && scores.官杀 < 1) careerRiskFlags.push('规则过密的岗位容易限制发挥');
+
+  const wealthMode: BaziInteractionContext['ruleInsights']['wealthMode'] = scores.财 >= 2.5
+    ? ['强', '偏强', '中和'].includes(baseline.strength.level) ? '主动经营型' : '有财机但承压明显'
+    : scores.财 < 1.2 ? '财不是核心驱动力' : '稳健积累型';
+  const wealthFlags: string[] = [];
+  if (scores.比劫 - scores.财 >= 1) wealthFlags.push('合伙、人情或竞争性资源消耗风险');
+  if (scores.食伤 >= 2 && scores.财 >= 1.5) wealthFlags.push('技能、表达或产品化变现倾向');
+
+  const relationshipStar = profile.gender === 'Male' ? '财' as const : '官杀' as const;
+  const relationshipScore = scores[relationshipStar];
+  const relationshipFlags: string[] = [];
+  if (relationshipScore >= 2 && peachHits.length) relationshipFlags.push('关系机会较活跃但选择成本可能增加');
+  else if (relationshipScore < 1) relationshipFlags.push('关系驱动力相对偏弱');
+  else relationshipFlags.push('关系发展更依赖阶段匹配与现实条件');
+  if (scores.比劫 >= 2 && ['强', '偏强'].includes(baseline.strength.level)) relationshipFlags.push('关系中的主导性较强');
+  if (scores.印 >= 2 && ['弱', '偏弱'].includes(baseline.strength.level)) relationshipFlags.push('安全感需求较高');
+
+  return {
+    tenGodDominance: { dominant, secondary, ranking: ranking.map(([category, score]) => ({ category, score })) },
+    shenSha: {
+      peachBlossom: { targets: peachTargets, natalHits: peachHits },
+      tianYi: { targets: tianYiTargets, natalHits: tianYiHits },
+    },
+    ruleInsights: {
+      personalityTags: [...PERSONALITY_TAGS[dominant], PERSONALITY_TAGS[secondary][0]],
+      careerAxis,
+      careerTags,
+      careerRiskFlags,
+      wealthMode,
+      wealthFlags,
+      relationshipStar,
+      relationshipFlags,
+    },
+  };
 };
 
 const findLiuYueForDate = (context: Pick<FortunePeriodContext, 'liuYueSegments'>, date: string) => {
@@ -191,17 +451,28 @@ export const calculateBaziInteractions = (
     elementCounts[pillar.analysis.stem.element] += 1;
     pillar.analysis.branch.hiddenStems.forEach(hiddenStem => { elementCounts[hiddenStem.element] += 1; });
   });
+  const natalBaseline = calculateNatalBaseline(natalPillars, dayMasterMeta.element);
+  const localInsights = calculateRuleInsights(profile, natalPillars, natalBaseline);
 
-  const daYun = analyzePeriodLayer('大运', context.daYun, dayMaster, natalSources);
+  const daYun = attachPeriodEvidence(
+    analyzePeriodLayer('大运', context.daYun, dayMaster, natalSources),
+    natalBaseline.favorable,
+  );
   const daYunSource = isGanZhi(context.daYun) ? [{ label: '大运', ganZhi: context.daYun }] : [];
   const liuNianPrevious = [...natalSources, ...daYunSource];
-  const liuNian = analyzePeriodLayer('流年', context.liuNian, dayMaster, liuNianPrevious);
+  const liuNian = attachPeriodEvidence(
+    analyzePeriodLayer('流年', context.liuNian, dayMaster, liuNianPrevious),
+    natalBaseline.favorable,
+  );
   const commonPeriodSources = [...liuNianPrevious, { label: '流年', ganZhi: context.liuNian }];
 
   const liuYueSegments = context.liuYueSegments.map(segment => {
     const label = `流月${segment.startDateTime.slice(0, 10)}`;
     return {
-      ...analyzePeriodLayer(label, segment.ganZhi, dayMaster, commonPeriodSources),
+      ...attachPeriodEvidence(
+        analyzePeriodLayer(label, segment.ganZhi, dayMaster, commonPeriodSources),
+        natalBaseline.favorable,
+      ),
       startDateTime: segment.startDateTime,
       endDateTime: segment.endDateTime,
     };
@@ -214,7 +485,10 @@ export const calculateBaziInteractions = (
       : commonPeriodSources;
     const label = `流日${day.date}`;
     return {
-      ...analyzePeriodLayer(label, day.ganZhi, dayMaster, previousSources),
+      ...attachPeriodEvidence(
+        analyzePeriodLayer(label, day.ganZhi, dayMaster, previousSources),
+        natalBaseline.favorable,
+      ),
       date: day.date,
       weekday: day.weekday,
     };
@@ -231,12 +505,22 @@ export const calculateBaziInteractions = (
     },
     elementCounts,
     elementCountBasis: '四柱天干与地支藏干的出现次数，不代表旺衰权重或喜用神结论',
+    ...natalBaseline,
+    ...localInsights,
+    strengthCalculationBasis: 'Yuan 子平参考口径：明干各 1.0；藏干按 1 个=1.0、2 个=0.7/0.3、3 个=0.7/0.2/0.1 加权；再叠加月令同类+1.5、印星+1.2、食伤-0.8、财星-1.0、官杀-1.2，计算扶抑比值与正格/从格。此为工程化传统命理模型，不是科学测量。',
+    calculationConvention: {
+      version: 'lifekline-bazi-v2',
+      yearBoundary: '立春',
+      monthBoundary: '十二节',
+      dayBoundary: '23:00子初',
+      timeBasis: '真太阳时',
+    },
     natalPillars,
     natalRelations: calculateRelations(natalSources),
     daYun,
     liuNian,
     liuYueSegments,
     days,
-    interpretationBoundary: '本地仅确定历法、十神、藏干、五行方向和合冲刑害等结构关系；旺衰、格局、喜忌与事件映射属于传统命理解读，不是客观预测。',
+    interpretationBoundary: '本地确定历法、十神、藏干、加权五行、工程化旺衰格局喜忌和合冲刑害；AI 只能在这些结果上进行传统文化解释，不得重算或覆盖，事件映射不是客观预测。',
   };
 };

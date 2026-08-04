@@ -80,9 +80,22 @@ const ShortTermFortuneResult: React.FC<ShortTermFortuneResultProps> = ({ result,
             <p className="mt-1">月令：{interactions.monthCommand.branch} · {interactions.monthCommand.mainElement} · {interactions.monthCommand.relationToDayMaster}</p>
           </div>
           <div className="rounded-xl bg-gray-50 p-4">
-            <p className="font-bold">五行出现次数</p>
-            <p className="mt-2">{Object.entries(interactions.elementCounts).map(([element, count]) => `${element}${count}`).join('　')}</p>
-            <p className="mt-2 text-xs text-gray-500">{interactions.elementCountBasis}</p>
+            <p className="font-bold">旺衰、格局与喜忌</p>
+            <p className="mt-2">日主{interactions.strength.level} · {interactions.structure.subtype} · 扶抑比值 {interactions.strength.ratio}</p>
+            <p className="mt-1">喜：{interactions.favorable.categories.join('、') || '无'}　忌：{interactions.favorable.unfavorableCategories.join('、') || '无'}</p>
+            <p className="mt-2 text-xs text-gray-500">加权五行：{Object.entries(interactions.weightedFiveElements).map(([element, score]) => `${element}${score}`).join('　')}</p>
+          </div>
+          <div className="rounded-xl bg-emerald-50 p-4">
+            <p className="font-bold">十神与规则标签</p>
+            <p className="mt-2">主导：{interactions.tenGodDominance.dominant} · 次要：{interactions.tenGodDominance.secondary}</p>
+            <p className="mt-1">事业：{interactions.ruleInsights.careerAxis}　财富：{interactions.ruleInsights.wealthMode}</p>
+            <p className="mt-2 text-xs text-gray-500">{interactions.ruleInsights.careerTags.join('、')}</p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="font-bold">神煞命中（文化参考）</p>
+            <p className="mt-2">桃花：{interactions.shenSha.peachBlossom.natalHits.join('、') || '原局未命中'}</p>
+            <p className="mt-1">天乙贵人：{interactions.shenSha.tianYi.natalHits.join('、') || '原局未命中'}</p>
+            <p className="mt-2 text-xs text-gray-500">只记录查表命中，不直接判定具体事件。</p>
           </div>
         </div>
         <div className="mt-4">
@@ -99,13 +112,29 @@ const ShortTermFortuneResult: React.FC<ShortTermFortuneResultProps> = ({ result,
       <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <h3 className="flex items-center gap-2 text-xl font-serif-sc font-bold text-gray-800"><Sparkles className="w-5 h-5 text-indigo-600" />周期时间轴</h3>
         <div className="mt-5 grid gap-3">
-          {result.timeline.map(item => (
-            <article key={item.dateRange} className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 sm:grid-cols-[150px_52px_1fr] sm:items-center">
-              <p className="text-sm font-bold text-gray-700">{item.dateRange}</p>
-              <p className="text-2xl font-black text-indigo-600">{item.score}</p>
-              <div><h4 className="font-bold text-gray-800">{item.title}</h4><p className="mt-1 text-sm leading-relaxed text-gray-600">{item.analysis}</p></div>
-            </article>
-          ))}
+          {result.timeline.map((item, index) => {
+            const weekday = result.period.type === 'week' ? result.period.days[index]?.weekday : null;
+            const breakdown = result.scoreDetails.timeline[index]?.breakdown;
+            return (
+              <article key={item.dateRange} className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 sm:grid-cols-[180px_52px_1fr] sm:items-center">
+                <p className="text-sm font-bold text-gray-700">{item.dateRange}{weekday ? ` ${weekday}` : ''}</p>
+                <p className="text-2xl font-black text-indigo-600">{item.score}</p>
+                <div>
+                  <h4 className="font-bold text-gray-800">{item.title}</h4>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-600">{item.analysis}</p>
+                  {breakdown ? (
+                    <details className="mt-2 text-xs text-gray-500">
+                      <summary className="cursor-pointer">查看本地评分明细</summary>
+                      <p className="mt-1">基础 50 · 大运 {breakdown.daYunAdjustment >= 0 ? '+' : ''}{breakdown.daYunAdjustment} · 流年 {breakdown.liuNianAdjustment >= 0 ? '+' : ''}{breakdown.liuNianAdjustment} · 流月 {breakdown.liuYueAdjustment >= 0 ? '+' : ''}{breakdown.liuYueAdjustment} · 流日 {breakdown.liuRiAdjustment >= 0 ? '+' : ''}{breakdown.liuRiAdjustment} · 联动 {breakdown.interactionAdjustment >= 0 ? '+' : ''}{breakdown.interactionAdjustment}</p>
+                      <ul className="mt-2 space-y-1 border-t border-gray-200 pt-2">
+                        {breakdown.evidence.map(item => <li key={item}>• {item}</li>)}
+                      </ul>
+                    </details>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 

@@ -66,6 +66,8 @@ export type FortunePeriodType = 'week' | 'month';
 export type FiveElement = '木' | '火' | '土' | '金' | '水';
 export type YinYang = '阳' | '阴';
 export type TenGod = '比肩' | '劫财' | '食神' | '伤官' | '偏财' | '正财' | '七杀' | '正官' | '偏印' | '正印';
+export type TenGodCategory = '比劫' | '食伤' | '财' | '官杀' | '印';
+export type FortuneFavorability = '有利' | '不利' | '中性' | '混合';
 
 export interface BaziGanZhiAnalysis {
   ganZhi: string;
@@ -98,6 +100,17 @@ export interface PeriodGanZhiAnalysis {
   ganZhi: string;
   analysis: BaziGanZhiAnalysis | null;
   relations: BaziRelation[];
+  evidence: {
+    stemCategory: TenGodCategory;
+    branchMainCategory: TenGodCategory;
+    stemFavorability: FortuneFavorability;
+    branchMainFavorability: FortuneFavorability;
+    combinedFavorability: FortuneFavorability;
+    triggeredNatalPillars: string[];
+    spousePalaceTriggered: boolean;
+    monthPillarTriggered: boolean;
+    hourPillarTriggered: boolean;
+  } | null;
 }
 
 export interface BaziInteractionContext {
@@ -114,6 +127,67 @@ export interface BaziInteractionContext {
   };
   elementCounts: Record<FiveElement, number>;
   elementCountBasis: string;
+  weightedFiveElements: Record<FiveElement, number>;
+  fiveElementStatus: Record<FiveElement, '偏缺' | '偏弱' | '平衡' | '偏旺' | '过旺'>;
+  tenGodCategoryScores: Record<TenGodCategory, number>;
+  tenGodDominance: {
+    dominant: TenGodCategory;
+    secondary: TenGodCategory;
+    ranking: Array<{ category: TenGodCategory; score: number }>;
+  };
+  strength: {
+    sameScore: number;
+    resourceScore: number;
+    outputScore: number;
+    wealthScore: number;
+    authorityScore: number;
+    monthBonus: number;
+    supportTotal: number;
+    drainTotal: number;
+    ratio: number;
+    level: '强' | '偏强' | '中和' | '偏弱' | '弱';
+  };
+  structure: {
+    type: '正格' | '从格';
+    subtype: '扶抑正格' | '从旺' | '从儿' | '从财' | '从官杀';
+    baseSupportRatio: number;
+    visibleSupportCount: number;
+    rootSupportCount: number;
+  };
+  favorable: {
+    categories: TenGodCategory[];
+    unfavorableCategories: TenGodCategory[];
+    elements: FiveElement[];
+    unfavorableElements: FiveElement[];
+  };
+  strengthCalculationBasis: string;
+  shenSha: {
+    peachBlossom: {
+      targets: string[];
+      natalHits: string[];
+    };
+    tianYi: {
+      targets: string[];
+      natalHits: string[];
+    };
+  };
+  ruleInsights: {
+    personalityTags: string[];
+    careerAxis: '管理制度型' | '市场经营型' | '研究专业型' | '喜用导向型';
+    careerTags: string[];
+    careerRiskFlags: string[];
+    wealthMode: '主动经营型' | '有财机但承压明显' | '财不是核心驱动力' | '稳健积累型';
+    wealthFlags: string[];
+    relationshipStar: '财' | '官杀';
+    relationshipFlags: string[];
+  };
+  calculationConvention: {
+    version: 'lifekline-bazi-v2';
+    yearBoundary: '立春';
+    monthBoundary: '十二节';
+    dayBoundary: '23:00子初';
+    timeBasis: '真太阳时';
+  };
   natalPillars: Array<{
     label: string;
     analysis: BaziGanZhiAnalysis;
@@ -158,8 +232,38 @@ export interface FortuneDimension {
   advice: string;
 }
 
+export interface LocalScoreBreakdown {
+  base: 50;
+  daYunAdjustment: number;
+  liuNianAdjustment: number;
+  liuYueAdjustment: number;
+  liuRiAdjustment: number;
+  interactionAdjustment: number;
+  finalScore: number;
+  evidence: string[];
+}
+
+export interface LocalFortuneScores {
+  ruleVersion: 'lifekline-short-score-v4';
+  timeline: Array<{
+    dateRange: string;
+    score: number;
+    breakdown: LocalScoreBreakdown;
+  }>;
+  dimensions: {
+    career: number;
+    wealth: number;
+    relationship: number;
+    health: number;
+  };
+  overallScore: number;
+  trend: 'up' | 'stable' | 'volatile' | 'cautious';
+  calculationBoundary: string;
+}
+
 export interface ShortTermFortuneResult {
   period: FortunePeriodContext;
+  scoreDetails: LocalFortuneScores;
   overallScore: number;
   trend: 'up' | 'stable' | 'volatile' | 'cautious';
   summary: string;

@@ -120,6 +120,7 @@ export function calculateBazi(input: BaziInput): BaziResult {
     trueSolarTime.second,
   );
   const eightChar = solar.getLunar().getEightChar();
+  eightChar.setSect(1);
   const gender = input.gender === 'Male' ? 1 : 0;
   const yun = eightChar.getYun(gender);
   const daYunSequence = yun.getDaYun(11)
